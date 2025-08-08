@@ -21,8 +21,8 @@ transcription:
 tts:
   provider: "elevenlabs"
   elevenlabs:
-    voice_id: "BlgEcC0TfWpBak7FmvHW"
-    model_id: "eleven_multilingual_v2"
+    voice_id: "pPdl9cQBQq4p6mRkZy2Z"
+    model_id: "eleven_flash_v2_5"
     voice_settings:
       stability: 0.30
       similarity_boost: 0.70
