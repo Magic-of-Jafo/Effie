@@ -156,17 +156,9 @@ async def main() -> None:
                             phase_arg = args.get("phase")
                             if action == "advance":
                                 new_phase = phase_manager.advance()
-                                try:
-                                    fsm.set_current_phase(new_phase)
-                                except Exception:
-                                    pass
                                 logger.info("Phase transitioned to %s (via LLM)", new_phase)
                             elif action == "set" and phase_arg is not None:
                                 new_phase = phase_manager.set(phase_arg)
-                                try:
-                                    fsm.set_current_phase(new_phase)
-                                except Exception:
-                                    pass
                                 logger.info("Phase set to %s (via LLM)", new_phase)
                     except Exception as tool_exc:
                         logger.warning("Tool-call handling error: %s", tool_exc)

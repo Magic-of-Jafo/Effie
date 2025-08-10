@@ -88,25 +88,14 @@ class InputHandler:
                     logger.debug("Failed scheduling transition timer: %s", exc)
 
     def handle_release(self, key: object) -> None:
-        # Primary hotkey (record)
-        if self._is_hotkey(key):
-            if not self._is_pressed:
-                logger.debug("InputHandler: %s released but not active; ignoring", self.hotkey_name)
-                return
-            self._is_pressed = False
-            logger.info("Hotkey '%s' released", self.hotkey_name)
-            self._submit(self.on_release_active())
+        if not self._is_hotkey(key):
             return
-        # Transition hotkey (long press cancel if early)
-        if self._is_transition_hotkey(key):
-            if self._transition_timer is not None:
-                try:
-                    self._transition_timer.cancel()
-                except Exception:
-                    pass
-                finally:
-                    self._transition_timer = None
-            self._transition_pressed = False
+        if not self._is_pressed:
+            logger.debug("InputHandler: %s released but not active; ignoring", self.hotkey_name)
+            return
+        self._is_pressed = False
+        logger.info("Hotkey '%s' released", self.hotkey_name)
+        self._submit(self.on_release_active())
 
     def start_keyboard_listener(self) -> Optional["keyboard.Listener"]:
         """Start a global keyboard listener in a background thread.

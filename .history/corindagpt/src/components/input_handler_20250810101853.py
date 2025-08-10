@@ -61,52 +61,24 @@ class InputHandler:
 
     # Public handlers that can be unit-tested directly
     def handle_press(self, key: object) -> None:
-        # Primary hotkey (record)
-        if self._is_hotkey(key):
-            if self._is_pressed:
-                logger.debug("InputHandler: %s pressed but already active; ignoring", self.hotkey_name)
-                return
-            self._is_pressed = True
-            logger.info("Hotkey '%s' pressed", self.hotkey_name)
-            self._submit(self.on_press_active())
+        if not self._is_hotkey(key):
             return
-        # Transition hotkey (long press)
-        if self._is_transition_hotkey(key):
-            if self._transition_pressed:
-                return
-            self._transition_pressed = True
-            if self.on_transition_trigger and self.transition_long_press_ms > 0:
-                delay_sec = max(0.0, self.transition_long_press_ms / 1000.0)
-                def _fire():
-                    # Ensure still pressed when timer fires
-                    if self._transition_pressed and self.on_transition_trigger:
-                        logger.info("Transition hotkey '%s' long-press threshold met (%d ms)", self.transition_hotkey_name, self.transition_long_press_ms)
-                        self._submit(self.on_transition_trigger())
-                try:
-                    self._transition_timer = self.loop.call_later(delay_sec, _fire)
-                except Exception as exc:
-                    logger.debug("Failed scheduling transition timer: %s", exc)
+        if self._is_pressed:
+            logger.debug("InputHandler: %s pressed but already active; ignoring", self.hotkey_name)
+            return
+        self._is_pressed = True
+        logger.info("Hotkey '%s' pressed", self.hotkey_name)
+        self._submit(self.on_press_active())
 
     def handle_release(self, key: object) -> None:
-        # Primary hotkey (record)
-        if self._is_hotkey(key):
-            if not self._is_pressed:
-                logger.debug("InputHandler: %s released but not active; ignoring", self.hotkey_name)
-                return
-            self._is_pressed = False
-            logger.info("Hotkey '%s' released", self.hotkey_name)
-            self._submit(self.on_release_active())
+        if not self._is_hotkey(key):
             return
-        # Transition hotkey (long press cancel if early)
-        if self._is_transition_hotkey(key):
-            if self._transition_timer is not None:
-                try:
-                    self._transition_timer.cancel()
-                except Exception:
-                    pass
-                finally:
-                    self._transition_timer = None
-            self._transition_pressed = False
+        if not self._is_pressed:
+            logger.debug("InputHandler: %s released but not active; ignoring", self.hotkey_name)
+            return
+        self._is_pressed = False
+        logger.info("Hotkey '%s' released", self.hotkey_name)
+        self._submit(self.on_release_active())
 
     def start_keyboard_listener(self) -> Optional["keyboard.Listener"]:
         """Start a global keyboard listener in a background thread.

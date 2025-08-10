@@ -119,65 +119,25 @@ async def main() -> None:
                     rendered = render_prompt(template, {"transcript": transcript})
 
                     # Call LLM with rendered prompt
-                    from .services import gpt as gpt_service
+                    from .services.gpt import generate_response
                     from .services import tts as tts_service
 
-                    llm_ctrl = ((cfg.get("transitions") or {}).get("llm_phase_control") or {})
-                    use_tools = bool(llm_ctrl.get("enabled", False))
-
                     try:
-                        if use_tools:
-                            content, tool_calls = await gpt_service.chat_with_tools(rendered)
-                        else:
-                            content = await gpt_service.generate_response(rendered)
-                            tool_calls = []
-                        logger.info("LLM Response: %s", content)
+                        llm_text = await generate_response(rendered)
+                        logger.info("LLM Response: %s", llm_text)
                     except Exception as llm_exc:
                         logger.error("LLM generate_response failed: %s", llm_exc)
                         # PROCESSING -> IDLE on failure as well
                         fsm.transition(State.IDLE)
                         return
 
-                    # Handle tool calls
-                    try:
-                        for call in tool_calls:
-                            fn = ((call or {}).get("function") or {})
-                            name = fn.get("name")
-                            args_str = fn.get("arguments")
-                            if name != "set_phase":
-                                continue
-                            # Parse arguments (JSON string per OpenAI)
-                            try:
-                                import json as _json
-                                args = _json.loads(args_str) if isinstance(args_str, str) else (args_str or {})
-                            except Exception:
-                                args = {}
-                            action = (args.get("action") or "").lower()
-                            phase_arg = args.get("phase")
-                            if action == "advance":
-                                new_phase = phase_manager.advance()
-                                try:
-                                    fsm.set_current_phase(new_phase)
-                                except Exception:
-                                    pass
-                                logger.info("Phase transitioned to %s (via LLM)", new_phase)
-                            elif action == "set" and phase_arg is not None:
-                                new_phase = phase_manager.set(phase_arg)
-                                try:
-                                    fsm.set_current_phase(new_phase)
-                                except Exception:
-                                    pass
-                                logger.info("Phase set to %s (via LLM)", new_phase)
-                    except Exception as tool_exc:
-                        logger.warning("Tool-call handling error: %s", tool_exc)
-
                     try:
                         # If streaming is enabled, stream directly; otherwise synth then play
                         if tts_service.is_streaming_enabled():
-                            await tts_service.stream_and_play(content, started_at_monotonic=t_release_mono)
+                            await tts_service.stream_and_play(llm_text, started_at_monotonic=t_release_mono)
                             audio_bytes = b""
                         else:
-                            audio_bytes = await tts_service.synthesize(content)
+                            audio_bytes = await tts_service.synthesize(llm_text)
                     except Exception as tts_exc:
                         logger.error("TTS synthesize/stream failed: %s", tts_exc)
                         fsm.transition(State.IDLE)
@@ -191,6 +151,7 @@ async def main() -> None:
                     finally:
                         # PROCESSING -> IDLE after playback completes (or errors)
                         fsm.transition(State.IDLE)
+                        # Auto-advance removed; phase changes are controlled by input (2.4) or LLM (2.5)
             except Exception as exc:
                 logger.error("Transcription failed: %s", exc)
                 # Return to IDLE on error
@@ -203,11 +164,6 @@ async def main() -> None:
     # Transition trigger from long-press hotkey per config
     async def on_transition_trigger() -> None:
         new_phase = phase_manager.advance()
-        # Sync FSM display/logging phase
-        try:
-            fsm.set_current_phase(new_phase)
-        except Exception:
-            pass
         logger.info("Phase transitioned to %s", new_phase)
 
     # Extract transition hotkey settings

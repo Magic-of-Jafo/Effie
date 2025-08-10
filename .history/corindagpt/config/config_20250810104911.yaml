@@ -3,7 +3,7 @@ elevenlabs_api_key: "YOUR_ELEVENLABS_API_KEY"
 model_names:
   text: "gpt-4o-mini"
   transcription: "whisper-1"
-performance_plan: [1, 2, 3, 4, 5]
+performance_plan: [1]
 transcription:
   provider: "elevenlabs"
   # The service will try models in order; falls back on error

@@ -97,7 +97,6 @@ async def generate_response(prompt_text: str, *, http_client: Optional[httpx.Asy
         tools = _build_tools_config(cfg)
         if tools:
             payload["tools"] = tools
-            payload["tool_choice"] = "auto"
         resp = await client.post("/chat/completions", headers=headers, json=payload)
         resp.raise_for_status()
         data = resp.json()
@@ -151,7 +150,6 @@ async def chat_with_tools(prompt_text: str, *, http_client: Optional[httpx.Async
         tools = _build_tools_config(cfg)
         if tools:
             payload["tools"] = tools
-            payload["tool_choice"] = "auto"
         resp = await client.post("/chat/completions", headers=headers, json=payload)
         resp.raise_for_status()
         data = resp.json()
@@ -161,11 +159,7 @@ async def chat_with_tools(prompt_text: str, *, http_client: Optional[httpx.Async
         if not isinstance(content, str):
             content = str(content)
         tool_calls = message.get("tool_calls") or []
-        logger.info(
-            "GPT: response received (%d chars, %d tool calls)",
-            len(content),
-            len(tool_calls) if isinstance(tool_calls, list) else 0,
-        )
+        logger.info("GPT: response received (%d chars, %d tool calls)", len(content), len(tool_calls) if isinstance(tool_calls, list) else 0)
         # Normalize tool_calls to list[dict]
         if not isinstance(tool_calls, list):
             tool_calls = []
