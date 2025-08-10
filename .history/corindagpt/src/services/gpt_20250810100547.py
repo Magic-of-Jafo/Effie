@@ -18,8 +18,8 @@ async def generate_response(prompt_text: str, *, http_client: Optional[httpx.Asy
 
     Uses OpenAI Chat Completions via httpx.AsyncClient.
     """
-    if not isinstance(prompt_text, str) or not prompt_text.strip():
-        raise ValueError("prompt_text must be a non-empty string")
+    if not isinstance(prompt, str) or not prompt.strip():
+        raise ValueError("prompt must be a non-empty string")
 
     cfg = config or load_config()
     api_key: Optional[str] = cfg.get("openai_api_key")
@@ -44,7 +44,7 @@ async def generate_response(prompt_text: str, *, http_client: Optional[httpx.Asy
             "model": model,
             "messages": [
                 {"role": "system", "content": "You are a concise assistant."},
-                {"role": "user", "content": prompt_text.strip()},
+                {"role": "user", "content": prompt.strip()},
             ],
             "max_tokens": 64,
             "temperature": 0.7,

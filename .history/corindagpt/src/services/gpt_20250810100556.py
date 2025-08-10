@@ -44,7 +44,7 @@ async def generate_response(prompt_text: str, *, http_client: Optional[httpx.Asy
             "model": model,
             "messages": [
                 {"role": "system", "content": "You are a concise assistant."},
-                {"role": "user", "content": prompt_text.strip()},
+                {"role": "user", "content": prompt.strip()},
             ],
             "max_tokens": 64,
             "temperature": 0.7,
