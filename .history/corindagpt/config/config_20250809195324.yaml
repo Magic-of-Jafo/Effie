@@ -1,0 +1,39 @@
+openai_api_key: "YOUR_OPENAI_API_KEY"
+elevenlabs_api_key: "YOUR_ELEVENLABS_API_KEY"
+model_names:
+  text: "gpt-4o-mini"
+  transcription: "whisper-1"
+transcription:
+  provider: "elevenlabs"
+  # The service will try models in order; falls back on error
+  models: ["gpt-4o-transcribe", "whisper-1"]
+  model: "whisper-1"
+  language: "en"
+  prompt: "Common phrases: Hello testing, testing one two"
+  streaming_enabled: false
+  elevenlabs:
+    endpoint: "https://api.elevenlabs.io/v1/speech-to-text"
+    model: "scribe_v1"
+    diarize: true
+    tag_audio_events: true
+    language_code: null  # use ISO like 'eng'; auto if null; 'en' will map to 'eng'
+
+tts:
+  provider: "elevenlabs"
+  streaming_enabled: false
+  output_format: "pcm_16000"
+  playback:
+    backend: "elevenlabs"
+    warmup_ms: 200
+    settle_ms: 0
+    preroll_ms: 0
+    start_delay_ms: 0
+  debug:
+    save_last_wav: true
+    path: "last_tts.wav"
+  elevenlabs:
+    voice_id: "BlgEcC0TfWpBak7FmvHW"
+    model_id: "eleven_multilingual_v2"
+    voice_settings:
+      stability: 0.30
+      similarity_boost: 0.70
