@@ -43,6 +43,13 @@ async def main() -> None:
     # Load configuration
     cfg = load_config()
 
+    # Pre-open TLS connections to both APIs so the first interaction is fast
+    from .services import gpt as _gpt_warm, tts as _tts_warm
+    warmup_tasks = [
+        asyncio.create_task(_gpt_warm.warmup(cfg)),
+        asyncio.create_task(_tts_warm.warmup(cfg)),
+    ]
+
     # Benchmark toggle via env
     benchmark = os.getenv("BENCHMARK_TRANSCRIPTION", "0") == "1"
 
@@ -133,6 +140,61 @@ async def main() -> None:
 
                     llm_ctrl = ((cfg.get("transitions") or {}).get("llm_phase_control") or {})
                     use_tools = bool(llm_ctrl.get("enabled", False))
+                    sentence_streaming = tts_service.is_streaming_enabled() and bool(
+                        (cfg.get("tts") or {}).get("sentence_streaming", True)
+                    )
+
+                    def handle_tool_calls(tool_calls: list) -> None:
+                        try:
+                            for call in tool_calls:
+                                fn = ((call or {}).get("function") or {})
+                                name = fn.get("name")
+                                args_str = fn.get("arguments")
+                                if name != "set_phase":
+                                    continue
+                                # Parse arguments (JSON string per OpenAI)
+                                try:
+                                    import json as _json
+                                    args = _json.loads(args_str) if isinstance(args_str, str) else (args_str or {})
+                                except Exception:
+                                    args = {}
+                                action = (args.get("action") or "").lower()
+                                phase_arg = args.get("phase")
+                                if action == "advance":
+                                    new_phase = phase_manager.advance()
+                                    try:
+                                        fsm.set_current_phase(new_phase)
+                                    except Exception:
+                                        pass
+                                    logger.info("Phase transitioned to %s (via LLM)", new_phase)
+                                elif action == "set" and phase_arg is not None:
+                                    new_phase = phase_manager.set(phase_arg)
+                                    try:
+                                        fsm.set_current_phase(new_phase)
+                                    except Exception:
+                                        pass
+                                    logger.info("Phase set to %s (via LLM)", new_phase)
+                        except Exception as tool_exc:
+                            logger.warning("Tool-call handling error: %s", tool_exc)
+
+                    if sentence_streaming:
+                        # Overlapped pipeline: TTS begins on the first complete
+                        # sentence while the LLM is still generating (NFR5).
+                        sink: dict = {}
+                        try:
+                            await tts_service.stream_sentences_and_play(
+                                gpt_service.stream_chat(rendered, sink=sink),
+                                started_at_monotonic=t_release_mono,
+                            )
+                            logger.info("LLM Response: %s", sink.get("content", ""))
+                        except Exception as pipe_exc:
+                            logger.error("Streamed LLM->TTS pipeline failed: %s", pipe_exc)
+                            fsm.transition(State.IDLE)
+                            return
+                        finally:
+                            handle_tool_calls(sink.get("tool_calls") or [])
+                            fsm.transition(State.IDLE)
+                        return
 
                     try:
                         if use_tools:
@@ -147,38 +209,7 @@ async def main() -> None:
                         fsm.transition(State.IDLE)
                         return
 
-                    # Handle tool calls
-                    try:
-                        for call in tool_calls:
-                            fn = ((call or {}).get("function") or {})
-                            name = fn.get("name")
-                            args_str = fn.get("arguments")
-                            if name != "set_phase":
-                                continue
-                            # Parse arguments (JSON string per OpenAI)
-                            try:
-                                import json as _json
-                                args = _json.loads(args_str) if isinstance(args_str, str) else (args_str or {})
-                            except Exception:
-                                args = {}
-                            action = (args.get("action") or "").lower()
-                            phase_arg = args.get("phase")
-                            if action == "advance":
-                                new_phase = phase_manager.advance()
-                                try:
-                                    fsm.set_current_phase(new_phase)
-                                except Exception:
-                                    pass
-                                logger.info("Phase transitioned to %s (via LLM)", new_phase)
-                            elif action == "set" and phase_arg is not None:
-                                new_phase = phase_manager.set(phase_arg)
-                                try:
-                                    fsm.set_current_phase(new_phase)
-                                except Exception:
-                                    pass
-                                logger.info("Phase set to %s (via LLM)", new_phase)
-                    except Exception as tool_exc:
-                        logger.warning("Tool-call handling error: %s", tool_exc)
+                    handle_tool_calls(tool_calls)
 
                     try:
                         # If streaming is enabled, stream directly; otherwise synth then play

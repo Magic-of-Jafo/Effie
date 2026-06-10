@@ -37,6 +37,8 @@ input_patterns:
 tts:
   provider: "elevenlabs"
   streaming_enabled: true
+  # Start TTS on the first complete sentence while the LLM is still generating
+  sentence_streaming: true
   output_format: "pcm_16000"
   playback:
     backend: "sounddevice"
@@ -49,7 +51,8 @@ tts:
     path: "last_tts.wav"
   elevenlabs:
     voice_id: "pPdl9cQBQq4p6mRkZy2Z"
-    model_id: "eleven_multilingual_v2"
+    # flash_v2_5: ~200ms to first audio vs ~1100ms for eleven_multilingual_v2
+    model_id: "eleven_flash_v2_5"
     voice_settings:
       stability: 0.40
       speed: 0.90

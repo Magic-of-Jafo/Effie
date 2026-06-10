@@ -6,7 +6,7 @@ import shutil
 import subprocess
 import tempfile
 import wave
-from typing import Any, Dict, Optional
+from typing import Any, AsyncIterator, Dict, Optional
 from time import monotonic
 
 import httpx
@@ -17,6 +17,34 @@ except Exception:
     from utils.initialization import load_config
 
 logger = logging.getLogger(__name__)
+
+_el_client = None
+_el_client_key: Optional[str] = None
+
+
+def get_elevenlabs_client(api_key: str):
+    """Process-wide ElevenLabs client so TLS connections are reused across requests."""
+    global _el_client, _el_client_key
+    if _el_client is None or _el_client_key != api_key:
+        from elevenlabs.client import ElevenLabs  # type: ignore
+
+        _el_client = ElevenLabs(api_key=api_key)
+        _el_client_key = api_key
+    return _el_client
+
+
+async def warmup(config: Optional[Dict[str, Any]] = None) -> None:
+    """Open the TLS connection to ElevenLabs ahead of the first real request."""
+    cfg = config or load_config()
+    api_key = cfg.get("elevenlabs_api_key")
+    if not api_key:
+        return
+    try:
+        client = get_elevenlabs_client(api_key)
+        await asyncio.to_thread(client.models.list)
+        logger.info("ElevenLabs connection warmed up")
+    except Exception as exc:
+        logger.warning("ElevenLabs warmup failed (continuing): %s", exc)
 
 
 # ---------------------------
@@ -488,7 +516,7 @@ async def stream_and_play(text: str, *, config: Optional[Dict[str, Any]] = None,
     except Exception as exc:
         raise RuntimeError(f"ElevenLabs SDK not available: {exc}") from exc
 
-    client = ElevenLabs(api_key=api_key)
+    client = get_elevenlabs_client(api_key)
 
     if backend == "sounddevice" and output_format.startswith("pcm_"):
         # Direct PCM streaming via sounddevice: no external player dependency
@@ -545,3 +573,108 @@ async def stream_and_play(text: str, *, config: Optional[Dict[str, Any]] = None,
         logger.info("Timing: release->play_start %d ms", elapsed_ms)
     logger.info("Playback backend: elevenlabs.stream")
     await asyncio.to_thread(el_stream, audio_stream)
+
+
+_SENTENCE_ENDINGS = (".", "!", "?", "…")
+
+
+def _split_complete_sentences(buffer: str) -> tuple[list[str], str]:
+    """Split buffer into complete sentences plus the unfinished remainder."""
+    sentences: list[str] = []
+    start = 0
+    for i, ch in enumerate(buffer):
+        if ch in _SENTENCE_ENDINGS:
+            # Treat as sentence end only when followed by whitespace/end of buffer,
+            # so "3.5" or "Dr." mid-stream don't trigger a premature flush.
+            nxt = buffer[i + 1] if i + 1 < len(buffer) else " "
+            if nxt.isspace():
+                sentence = buffer[start : i + 1].strip()
+                if sentence:
+                    sentences.append(sentence)
+                start = i + 1
+    return sentences, buffer[start:]
+
+
+async def stream_sentences_and_play(
+    text_deltas: AsyncIterator[str],
+    *,
+    config: Optional[Dict[str, Any]] = None,
+    started_at_monotonic: Optional[float] = None,
+) -> None:
+    """Play TTS for an in-progress LLM response, sentence by sentence.
+
+    Consumes text deltas as the LLM generates them, flushes each complete
+    sentence to the ElevenLabs streaming endpoint, and plays the resulting
+    PCM through a single sounddevice output stream — so speech begins after
+    the first sentence is complete rather than after the full response.
+    """
+    import queue as _queue
+
+    import sounddevice as sd  # type: ignore
+
+    cfg = config or load_config()
+    api_key: Optional[str] = cfg.get("elevenlabs_api_key")
+    if not api_key:
+        raise RuntimeError("ELEVENLABS_API_KEY not configured (env or config.yaml)")
+
+    tts_cfg: Dict[str, Any] = cfg.get("tts", {})
+    ev_cfg: Dict[str, Any] = tts_cfg.get("elevenlabs", {})
+    voice_id: str = ev_cfg.get("voice_id") or "EXAVITQu4vr4xnSDxMaL"
+    model_id: str = ev_cfg.get("model_id") or "eleven_flash_v2_5"
+    output_format: str = str(tts_cfg.get("output_format") or "pcm_16000")
+    if not output_format.startswith("pcm_"):
+        output_format = "pcm_16000"
+    samplerate = int(output_format.split("_", 1)[1])
+
+    from elevenlabs.client import ElevenLabs  # type: ignore
+
+    client = get_elevenlabs_client(api_key)
+    sentence_q: "_queue.Queue[Optional[str]]" = _queue.Queue()
+    first_audio_logged = False
+
+    def _playback_worker() -> None:
+        nonlocal first_audio_logged
+        with sd.RawOutputStream(samplerate=samplerate, channels=1, dtype="int16") as out:
+            while True:
+                sentence = sentence_q.get()
+                if sentence is None:
+                    return
+                try:
+                    audio_stream = client.text_to_speech.stream(
+                        text=sentence,
+                        voice_id=voice_id,
+                        model_id=model_id,
+                        output_format=output_format,
+                    )
+                    remainder = b""
+                    for chunk in audio_stream:
+                        if not chunk:
+                            continue
+                        if not first_audio_logged:
+                            if started_at_monotonic is not None:
+                                elapsed_ms = int((monotonic() - started_at_monotonic) * 1000)
+                                logger.info("Timing: release->first_audio %d ms", elapsed_ms)
+                            logger.info("Playback backend: sounddevice/pcm (sentence-streamed)")
+                            first_audio_logged = True
+                        data = remainder + chunk
+                        cut = len(data) - (len(data) % 2)
+                        remainder = data[cut:]
+                        if cut:
+                            out.write(data[:cut])
+                except Exception as exc:
+                    logger.error("Sentence TTS failed (continuing with next): %s", exc)
+
+    player = asyncio.create_task(asyncio.to_thread(_playback_worker))
+    try:
+        buffer = ""
+        async for delta in text_deltas:
+            buffer += delta
+            sentences, buffer = _split_complete_sentences(buffer)
+            for s in sentences:
+                sentence_q.put(s)
+        tail = buffer.strip()
+        if tail:
+            sentence_q.put(tail)
+    finally:
+        sentence_q.put(None)
+        await player
