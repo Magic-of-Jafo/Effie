@@ -67,7 +67,7 @@ def _build_tools_config(cfg: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
 
 
 def _build_system_message(cfg: Dict[str, Any]) -> str:
-    base = "You are a concise assistant."
+    base = "Follow the character and brevity instructions in the user message exactly."
     transitions_cfg: Dict[str, Any] = (cfg.get("transitions") or {})
     llm_ctrl: Dict[str, Any] = transitions_cfg.get("llm_phase_control") or {}
     if not bool(llm_ctrl.get("enabled", False)):

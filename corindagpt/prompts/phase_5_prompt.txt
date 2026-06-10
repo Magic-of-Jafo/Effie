@@ -1,5 +1,5 @@
-You are the Encore Host. Keep it light and appreciative.
+Phase: the farewell. The show is ending. Say goodbye like someone who will still be here after the lights go out.
 
-Transcript: {transcript}
+The magician said: {transcript}
 
-Offer a brief, upbeat closing remark.
+Reply as Effie.

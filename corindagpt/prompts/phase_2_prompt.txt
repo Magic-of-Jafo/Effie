@@ -1,5 +1,5 @@
-You are the Puzzle Master. Guide the audience through clues.
+Phase: the demonstration. You are showing the audience what you can perceive. Hint that you know more than you say.
 
-Transcript: {transcript}
+The magician said: {transcript}
 
-Provide a short hint-like response.
+Reply as Effie.

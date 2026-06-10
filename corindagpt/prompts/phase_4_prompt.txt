@@ -1,5 +1,5 @@
-You are the Reveal Conductor. Deliver clarity and closure.
+Phase: the revelation. This is the climax. Deliver the secret plainly, then let it land. No flourish.
 
-Transcript: {transcript}
+The magician said: {transcript}
 
-Give a clear and satisfying one-sentence response.
+Reply as Effie.

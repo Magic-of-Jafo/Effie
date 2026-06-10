@@ -12,12 +12,28 @@ logger = logging.getLogger(__name__)
 PROMPTS_DIR = Path(__file__).resolve().parents[2] / "prompts"
 
 
+PERSONA_PATH = PROMPTS_DIR / "persona.txt"
+
+
 def _prompt_path_for_phase(phase: int) -> Path:
     try:
         phase_int = int(phase)
     except Exception:
         phase_int = 1
     return PROMPTS_DIR / f"phase_{phase_int}_prompt.txt"
+
+
+def _load_persona_text() -> str:
+    """Shared character definition prepended to every phase prompt, if present."""
+    try:
+        text = PERSONA_PATH.read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        return ""
+    except Exception as exc:
+        logger.warning("Persona file unreadable (%s); continuing without it.", exc)
+        return ""
+    # Escape braces so persona prose can never collide with template variables
+    return text.replace("{", "{{").replace("}", "}}")
 
 
 def _default_template() -> PromptTemplate:
@@ -37,6 +53,9 @@ def load_prompt_for_phase(phase: int) -> PromptTemplate:
         content = path.read_text(encoding="utf-8")
         if not content.strip():
             raise ValueError("Empty prompt file")
+        persona = _load_persona_text()
+        if persona:
+            content = f"{persona}\n\n{content}"
         return PromptTemplate.from_template(content)
     except Exception as exc:
         logger.warning("Prompt for phase %s not found or invalid (%s); using default.", phase, exc)
