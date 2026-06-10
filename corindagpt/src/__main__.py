@@ -128,7 +128,11 @@ async def main() -> None:
                             logger.info("%s -> %d ms TEXT: %s", label, ms, text)
                 else:
                     transcript = await transcriber.transcribe(data)
-                    logger.info("Transcript: %s", transcript)
+                    logger.info(
+                        "Transcript (release->transcript %d ms): %s",
+                        int((_mono() - t_release_mono) * 1000),
+                        transcript,
+                    )
                     # Load a phase-specific prompt and render with context
                     phase = phase_manager.current_phase
                     template = load_prompt_for_phase(phase)
