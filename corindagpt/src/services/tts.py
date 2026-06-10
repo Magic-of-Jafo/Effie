@@ -144,6 +144,21 @@ def _generate_silence_wav(duration_ms: int, *, sample_rate: int = 16000, channel
     return _pcm16le_to_wav_bytes(silence, sample_rate=sample_rate, channels=channels)
 
 
+def _voice_settings_obj(ev_cfg: Dict[str, Any]):
+    """Build a VoiceSettings object from config, or None to use voice defaults."""
+    vs = ev_cfg.get("voice_settings")
+    if not isinstance(vs, dict) or not vs:
+        return None
+    allowed = {"stability", "similarity_boost", "style", "use_speaker_boost", "speed"}
+    try:
+        from elevenlabs import VoiceSettings  # type: ignore
+
+        return VoiceSettings(**{k: v for k, v in vs.items() if k in allowed})
+    except Exception as exc:
+        logger.warning("Invalid tts.elevenlabs.voice_settings ignored: %s", exc)
+        return None
+
+
 # ---------------------------
 # TTS
 # ---------------------------
@@ -530,6 +545,7 @@ async def stream_and_play(text: str, *, config: Optional[Dict[str, Any]] = None,
                 voice_id=voice_id,
                 model_id=model_id,
                 output_format=output_format,
+                voice_settings=_voice_settings_obj(ev_cfg),
             )
             first_chunk = True
             remainder = b""
@@ -564,7 +580,8 @@ async def stream_and_play(text: str, *, config: Optional[Dict[str, Any]] = None,
     # Request streaming audio and play incrementally
     def _make_stream():
         return client.text_to_speech.stream(
-            text=text.strip(), voice_id=voice_id, model_id=model_id
+            text=text.strip(), voice_id=voice_id, model_id=model_id,
+            voice_settings=_voice_settings_obj(ev_cfg),
         )
 
     audio_stream = await asyncio.to_thread(_make_stream)
@@ -629,6 +646,7 @@ async def stream_sentences_and_play(
     from elevenlabs.client import ElevenLabs  # type: ignore
 
     client = get_elevenlabs_client(api_key)
+    voice_settings = _voice_settings_obj(ev_cfg)
     sentence_q: "_queue.Queue[Optional[str]]" = _queue.Queue()
     first_audio_logged = False
 
@@ -645,6 +663,7 @@ async def stream_sentences_and_play(
                         voice_id=voice_id,
                         model_id=model_id,
                         output_format=output_format,
+                        voice_settings=voice_settings,
                     )
                     remainder = b""
                     for chunk in audio_stream:
