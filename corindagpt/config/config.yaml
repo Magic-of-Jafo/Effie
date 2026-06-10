@@ -39,7 +39,7 @@ tts:
   streaming_enabled: true
   output_format: "pcm_16000"
   playback:
-    backend: "elevenlabs"
+    backend: "sounddevice"
     warmup_ms: 0
     settle_ms: 0
     preroll_ms: 0

@@ -479,6 +479,8 @@ async def stream_and_play(text: str, *, config: Optional[Dict[str, Any]] = None,
     playback_cfg: Dict[str, Any] = tts_cfg.get("playback", {})
     warmup_ms: int = int(playback_cfg.get("warmup_ms", 150))
     settle_ms: int = int(playback_cfg.get("settle_ms", 60))
+    backend: str = str(playback_cfg.get("backend") or "elevenlabs").lower()
+    output_format: str = str(tts_cfg.get("output_format") or "pcm_16000")
 
     try:
         from elevenlabs.client import ElevenLabs  # type: ignore
@@ -487,6 +489,41 @@ async def stream_and_play(text: str, *, config: Optional[Dict[str, Any]] = None,
         raise RuntimeError(f"ElevenLabs SDK not available: {exc}") from exc
 
     client = ElevenLabs(api_key=api_key)
+
+    if backend == "sounddevice" and output_format.startswith("pcm_"):
+        # Direct PCM streaming via sounddevice: no external player dependency
+        import sounddevice as sd  # type: ignore
+
+        samplerate = int(output_format.split("_", 1)[1])
+
+        def _stream_pcm() -> None:
+            audio_stream = client.text_to_speech.stream(
+                text=text.strip(),
+                voice_id=voice_id,
+                model_id=model_id,
+                output_format=output_format,
+            )
+            first_chunk = True
+            remainder = b""
+            with sd.RawOutputStream(samplerate=samplerate, channels=1, dtype="int16") as out:
+                for chunk in audio_stream:
+                    if not chunk:
+                        continue
+                    if first_chunk:
+                        if started_at_monotonic is not None:
+                            elapsed_ms = int((monotonic() - started_at_monotonic) * 1000)
+                            logger.info("Timing: release->play_start %d ms", elapsed_ms)
+                        logger.info("Playback backend: sounddevice/pcm")
+                        first_chunk = False
+                    data = remainder + chunk
+                    # int16 frames must be an even number of bytes
+                    cut = len(data) - (len(data) % 2)
+                    remainder = data[cut:]
+                    if cut:
+                        out.write(data[:cut])
+
+        await asyncio.to_thread(_stream_pcm)
+        return
 
     # Warmup: play a short silent WAV via elevenlabs.play (mpv) to wake device
     if warmup_ms > 0:

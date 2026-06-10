@@ -36,8 +36,9 @@ async def main() -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     logger = logging.getLogger("corindagpt")
-    # Suppress all logging output per request
-    logging.disable(logging.CRITICAL)
+    # Suppress all logging output (stealth) unless CORINDA_DEBUG=1
+    if os.getenv("CORINDA_DEBUG", "0") != "1":
+        logging.disable(logging.CRITICAL)
 
     # Load configuration
     cfg = load_config()
