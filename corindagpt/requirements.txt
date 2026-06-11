@@ -9,3 +9,4 @@ simpleaudio==1.0.*
 pydub==0.25.*
 pytest==8.*
 pytest-httpx==0.30.*
+pytest-asyncio==0.*

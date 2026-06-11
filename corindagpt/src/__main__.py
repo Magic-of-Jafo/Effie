@@ -89,11 +89,13 @@ async def main() -> None:
     except Exception as exc:
         logger.warning("Recorder calibration failed (continuing): %s", exc)
 
-    # Pre-loaded clip queue for BRIEF inputs (FR5); priority/preload is 4.1/4.2
-    from .services.audio_queue import build_default_queue
+    # Priority audio queue for BRIEF inputs (FR8/FR9)
+    from .services.audio_queue import AudioItem, build_default_queue, response_playback_mode
     from .services import decoder as decoder_service
 
     audio_queue = build_default_queue(cfg)
+    response_mode = response_playback_mode(cfg)
+    logger.info("LLM response playback mode: %s", response_mode)
 
     # Interaction mode for the press in progress, set by pattern events:
     # None (brief/dead-zone), "decode" (sustained), or "bypass" (compound)
@@ -229,6 +231,34 @@ async def main() -> None:
                                     logger.info("Phase set to %s (via LLM)", new_phase)
                         except Exception as tool_exc:
                             logger.warning("Tool-call handling error: %s", tool_exc)
+
+                    if response_mode == "queued":
+                        # Pull-string mode (FR8): the response is synthesized
+                        # and parked at the queue front; the next BRIEF input
+                        # (string pull) speaks it. Nothing plays now.
+                        try:
+                            if use_tools:
+                                content, tool_calls = await gpt_service.chat_with_tools(rendered)
+                            else:
+                                content = await gpt_service.generate_response(rendered)
+                                tool_calls = []
+                            logger.info("LLM Response (queued): %s", content)
+                        except Exception as llm_exc:
+                            logger.error("LLM request failed: %s", llm_exc)
+                            fsm.transition(State.IDLE)
+                            return
+                        handle_tool_calls(tool_calls)
+                        try:
+                            if content and content.strip():
+                                audio_bytes = await tts_service.synthesize(content)
+                                audio_queue.push_front(
+                                    AudioItem(label=f"LLM: {content[:40]}", data=audio_bytes)
+                                )
+                        except Exception as tts_exc:
+                            logger.error("TTS synthesis for queue failed: %s", tts_exc)
+                        finally:
+                            fsm.transition(State.IDLE)
+                        return
 
                     if sentence_streaming:
                         # Overlapped pipeline: TTS begins on the first complete

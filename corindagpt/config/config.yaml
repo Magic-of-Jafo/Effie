@@ -27,6 +27,18 @@ transitions:
     enabled: true
     keyphrases: ["next phase", "advance phase", "switch to phase {n}"]
 
+audio_queue:
+  # immediate: LLM responses stream straight to the speakers (conversational)
+  # queued: responses are synthesized and parked at the queue front; the next
+  #         brief input (the pull string) speaks them (doll mode, FR8)
+  response_playback: "immediate"
+  preload:
+    # Directory of clips loaded into the queue at startup (FR9).
+    # Generate phrase audio from the CSV with: python -m scripts.generate_phrase_audio
+    dir: "assets/phrases"
+    order: "sequential"   # or "random"
+    loop: true            # preloaded clips return to the back after playing
+
 decoder:
   # Hadley-style coded-language table; first column = code phrase,
   # *-prefixed headers = categories. Edit freely - no code changes needed.
