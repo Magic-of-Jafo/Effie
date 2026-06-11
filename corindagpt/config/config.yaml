@@ -27,6 +27,11 @@ transitions:
     enabled: true
     keyphrases: ["next phase", "advance phase", "switch to phase {n}"]
 
+decoder:
+  # Hadley-style coded-language table; first column = code phrase,
+  # *-prefixed headers = categories. Edit freely - no code changes needed.
+  data_path: "knowledge-base/effie_code.csv"
+
 input_patterns:
   enabled_sources: ["keyboard"]
   hotkey: "f12"

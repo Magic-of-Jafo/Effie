@@ -1,0 +1,133 @@
+﻿Code Phrase,*Number or date,*Letter,*Playing Card Value,"*Object, item, or clothes","*Object, item, or clothes when a lady, girl, or woman is mentioned",*Man's Name,*Lady's Name,*Country,*State,*City,*Gem,*Household Article,*Month,*Day,*Year,*Color,*Material,*Value of Coin,*Paper Currency,*Hour,*Minute
+CAN,1,A,,Smartphone,Smartphone,Adam,Anne,Austria,Alabama,Akron,diamond,,January,Monday,2001,white,Gold,penny,$1 ,1:00,:01
+THINK,2,B,,Keys,Keys,Benjamin,Bertha,Brazil,,Boston,emerald,,February,Tuesday,2002,blue,Silver,,$2 ,2:00,:02
+GUESS,3,C,,Wallet,Wallet,Charles,Clara,Canada,California,Chicago,amethyst,,March,Wednesday,2003,green,Bronze,,,3:00,:03
+ARE,4,D,,Watch,Watch,Daniel,Dorothy,Denmark,Delaware,Detroit,ruby,,April,Thursday,2004,orange,Copper,,,4:00,:04
+GIVE,5,E,,Sunglasses,Sunglasses,Edward,Emma,England,,Erie,jade,,May,Friday,2005,yellow,Chrome,nickel,$5 ,5:00,:05
+SAY,6,F,,Earbuds,Earbuds,Frank,Frances,France,Florida,Fort Worth,pearl,,June,Saturday,2006,brown,Metal,,,6:00,:06
+NAME,7,G,,Lip Balm,Lip Balm,George,Gertrude,Greece,Georgia,Galveston,,,July,Sunday,2007,purple,Fabric,,,7:00,:07
+SEE,8,H,,Hand Sanitizer,Hand Sanitizer,Harold,Helen,Holland,Hawaii,Hartford,,,August,,2008,black,Glass,,,8:00,:08
+TELL,9,I,,Charging Device,Charging Device,Irving,Isabel,Italy,Illinois,Indianapolis,sapphire,,September,,2009,red,Paper,,,9:00,:09
+NOW TRY,10,J,,Gum,Gum,John,Joan,Japan,,Jersey City,opal,,October,,2010,slate,Plastic,dime,$10 ,10:00,:10
+NOW CAN,11,K,,Pen,Pen,Kenneth,Kathrine,Korea,Kentucky,Kansas City,topaz,,November,,2011,ivory,Leather,,,11:00,:11
+NOW THINK,12,L,,Notebook,Notebook,Louis,Louise,Liberia,Louisiana,Louisville,turquoise,,December,,2012,sky blue,Wood,,,12:00,:12
+NOW GUESS,13,M,,Water Bottle,Water Bottle,,,Mexico,Massachusetts,,,,,,2013,mint,rubber,,,,:13
+NOW ARE,14,N,,Tissues,Tissues,,,Norway,New York,,,,,,2014,peach,,,,,:14
+NOW GIVE,15,O,,Face Mask,Face Mask,,,Oman,Ohio,,,,,,2015,lemon,,,,,:15
+NOW SAY,16,P,,Headphones,Headphones,,,Peru,Pennsylvania,,,,,,2016,beige,,,,,:16
+NOW NAME,17,Q,,USB Drive,USB Drive,,,Queensland,,,,,,,2017,lavender,,,,,:17
+NOW SEE,18,R,,Glasses,Glasses,,,Russia,Rhode Island,,,,,,2018,charcoal,,,,,:18
+NOW TELL,19,S,,Snack,Snack,,,Spain,South Carolina,,,,,,2019,pink,,,,,:19
+SO TRY,20,T,,Medication,Medication,,,Turkey,Tennessee,,,,,,2020,charcoal,,,$20 ,,:20
+SO CAN,21,U,,Fitness Tracker,Fitness Tracker,,,Uraguay,Utah,,,,,,2021,pearl,,,,,:21
+SO THINK,22,V,,Handkerchief,Handkerchief,,,Venezuela,Virginia,,,,,,2022,navy blue,,,,,:22
+SO GUESS,23,W,,Business Card,Business Card,,,Wales,Washington,,,,,,2023,forest green,,,,,:23
+SO ARE,24,X,,Comb,Comb,,,,,,,,,,2024,dark orange,,,,,:24
+SO GIVE,25,Y,,Mints,Mints,,,Yemen,,,,,,,1925,marigold,,quarter,,,:25
+SO SAY,26,Z,,Bracelet,Bracelet,,,Zanzibar,,,,,,,1926,chocolate,,,,,:26
+SO NAME,27,,,Ring,Ring,,,,,,,,,,1927,violet,,,,,:27
+SO SEE,28,,,Necklace,Necklace,,,,,,,,,,1928,black,,,,,:28
+SO TELL,29,,,Earring,Earring,,,,,,,,,,1929,burgundy,,,,,:29
+WELL TRY,30,,Ten of Spades,Personal Planner,Personal Planner,,,,,,,,*Vegetable,*Instrument,1930,,*Flower,,,,:30
+WELL CAN,31,A,Ace of Spades,Tablet,Tablet,,,,Arkansas,,,,Asparagus,Accordian,1931,,Aster,,,,:31
+WELL THINK,32,B,Two of Spades,Item Tracker,Item Tracker,,,,,,,,Bet,Bass Horn,1932,,Bachelor Button,,,,:32
+WELL GUESS,33,C,Three of Spades,Flashlight,Flashlight,,,,Connecticut,,,,Corn,Clarinet,1933,,Chrysanthemum,,,,:33
+WELL ARE,34,D,Four of Spades,Earplugs,Earplugs,,,,North Dakota,,,,Dill,Drum,1934,,Daisy,,,,:34
+WELL GIVE,35,E,Five of Spades,Gloves,Gloves,,,,,,,,Eggplant,English Horn,1935,,Everlasting,,,,:35
+WELL SAY,36,F,Six of Spades,Lens Wipes,Lens Wipes,,,,,,,,,Flute,1936,,Forget-me-not,,,,:36
+WELL NAME,37,G,Seven of Spades,Umbrella,Umbrella,,,,Guam,,,,,Guitar,1937,,Gladoli,,,,:37
+WELL SEE,38,H,Eight of Spades,Vape Device,Vape Device,,,,,,,,,Harp,1938,,ydrangea,,,,:38
+WELL TELL,39,I,Nine of Spades,Lighter,Lighter,,,,Iowa,,,,,,1939,,Iris,,,,:39
+ALL RIGHT TRY,40,J,Ten of Diamonds,Cufflinks,Cleansing Wipes,,,,,,,,,Juke Box,1940,,Jniper,,,,:40
+ALL RIGHT CAN,41,K,Ace of Diamonds,Hotspot,Compact Mirror,,,,Kansas,,,,,Kettle Drum,1941,,,,,,:41
+ALL RIGHT THINK,42,L,Two of Diamonds,Multi-tool,Hair Tie,,,,,,,,,Lyre,1942,,Lily,,,,:42
+ALL RIGHT GUESS,43,M,Three of Diamonds,Pocketknife,Hairbrush,,,,Michigan,,,,,Mandolin,1943,,Marigold,,,,:43
+ALL RIGHT ARE,44,N,Four of Diamonds,Tie Clip,Lipstick,,,,New Jersey,,,,,,1944,,Narcissus,,,,:44
+ALL RIGHT GIVE,45,O,Five of Diamonds,,Makeup Bag,,,,Oklahoma,,,,,Oboe,1945,,Oxalis,,,,:45
+ALL RIGHT SAY,46,P,Six of Diamonds,,Moisturizer,,,,Phillippines,,,,,Piano,1946,,Pansy,,,,:46
+ALL RIGHT NAME,47,Q,Seven of Diamonds,,Nail File,,,,,,,,,,1947,,,,,,:47
+ALL RIGHT SEE,48,R,Eight of Diamonds,,Pepper Spray,,,,,,,,,Reed,1948,,Rose,,,,:48
+ALL RIGHT TELL,49,S,Nine of Diamonds,,Perfume,,,,South Dakota,,,,,Saxophone,1949,,Sunfloer,,,,:49
+ALL RIGHT NOW TRY,50,T,,,Purse,,,,Texas,,,,,Trombone,1950,,Tistle,half-dollar,$50 ,,:50
+ALL RIGHT NOW CAN,51,U,,,Safety Pins,,,,,,,,,Ukelele,1951,,Umbrella Plant,,,,:51
+ALL RIGHT NOW THINK,52,V,,,Tampons/Pads,,,,Vermont,,,,,Violin,1952,,Verbena,,,,:52
+ALL RIGHT NOW GUESS,53,W,,,,,,,Wisconsin,,,,,,1953,,,,,,:53
+ALL RIGHT NOW ARE,54,X,,,,,,,,,,,,Xylophone,1954,,,,,,:54
+ALL RIGHT NOW GIVE,55,Y,,,,,,,,,,,,,1955,,Yellow Flag,,,,:55
+ALL RIGHT NOW SAY,56,Z,,,,,,,,,,,,,1956,,Zinnia,,,,:56
+ALL RIGHT NOW NAME,57,,,,,,,,,,,,,,1957,,,,,,:57
+ALL RIGHT NOW SEE,58,,,,,,,,,,,,,,1958,,,,,,:58
+ALL RIGHT NOW TELL,59,,,,,,,,,,,,,,1959,,,,,,:59
+ALL RIGHT PLEASE TRY,60,,,,,,,,*Holiday,*Animal,*Dog Breed,*Bird,,,1960,,,,,,
+ALL RIGHT PLEASE CAN,61,A,,,,,,,April Fool's Day,Antelope,Afghan Hound,,,,1961,,,,,,
+ALL RIGHT PLEASE THINK,62,B,,,,,,,Black Friday,Bar,Bulldog,Bluebird,,,1962,,,,,,
+ALL RIGHT PLEASE GUESS,63,C,,,,,,,Columbus Day,Coyote,Collie,Chickadee,,,1963,,,,,,
+ALL RIGHT PLEASE ARE,64,D,,,,,,,Dr. Martin Luther King Jr. Day,Deer,Dalmation,Duck,,,1964,,,,,,
+ALL RIGHT PLEASE GIVE,65,E,,,,,,,Easter,Elephant,English Setter,Eagle,,,1965,,,,,,
+ALL RIGHT PLEASE SAY,66,F,,,,,,,Father's Day,Fox,Fox Terrier,Falcon,,,1966,,,,,,
+ALL RIGHT PLEASE NAME,67,G,,,,,,,Groundhog Day,Grizzly,Greyhound,Grouse,,,1967,,,,,,
+ALL RIGHT PLEASE SEE,68,H,,,,,,,Halloween,yena,Hound,Hawk,,,1968,,,,,,
+ALL RIGHT PLEASE TELL,69,I,,,,,,,Independence Day,Ibex,Irish Terrier,,,,1969,,,,,,
+ALL RIGHT THEN TRY,70,J,,,,,,,,Jaguar,Jack Russel,,,,1970,,,,,,
+ALL RIGHT THEN CAN,71,K,,,,,,,Kwanzaa,Kangaroo,,Kingfisher,,,1971,,,,,,
+ALL RIGHT THEN THINK,72,L,,,,,,,Labor Day,Lynx,Laplander,,,,1972,,,,,,
+ALL RIGHT THEN GUESS,73,M,,,,,,,Mother's Day,Moose,Mastiff,Mallard,,,1973,,,,,,
+ALL RIGHT THEN ARE,74,N,,,,,,,New Year,,Newfoundland,,,,1974,,,,,,
+ALL RIGHT THEN GIVE,75,O,,,,,,,Oktoberfest,Octopus,,Owl,,,1975,,,,,,
+ALL RIGHT THEN SAY,76,P,,,,,,,President's Day,Puma,Pointer,Prarie Chicken,,,1976,,,,,,
+ALL RIGHT THEN NAME,77,Q,,,,,,,,,,Quail,,,1977,,,,,,
+ALL RIGHT THEN SEE,78,R,,,,,,,Ramadan,Racoon,Retriever,Robin,,,1978,,,,,,
+ALL RIGHT THEN TELL,79,S,,,,,,,Saint Patrick's Day,Seal,Spaniel,Sparrow,,,1979,,,,,,
+NOW PLEASE TRY,80,T,,,,,,,Thanksgiving,Tiger,,Turkey,,,1980,,,,,,
+NOW PLEASE CAN,81,U,,,,,,,,Unicorn,,,,,1981,,,,,,
+NOW PLEASE THINK,82,V,,,,,,,Valentine's Day,Vole,,Vulture,,,1982,,,,,,
+NOW PLEASE GUESS,83,W,,,,,,,Washington's Birthday,Wolf,Whippet,Woodpecker,,,1983,,,,,,
+NOW PLEASE ARE,84,X,,,,,,,Christmas,,,,,,1984,,,,,,
+NOW PLEASE GIVE,85,Y,,,,,,,Yum Kippur,Yak,,Yellow Warbler,,,1985,,,,,,
+NOW PLEASE SAY,86,Z,,,,,,,,Zebra,,,,,1986,,,,,,
+NOW PLEASE NAME,87,,,,,,,,,,,,,,1987,,,,,,
+NOW PLEASE SEE,88,,,,,,,,,,,,,,1988,,,,,,
+NOW PLEASE TELL,89,,,,,,,,,,,,,,1989,,,,,,
+NOW THEN TRY,90,,,,,,,,,,,,,,1990,,,,,,
+NOW THEN CAN,91,,,,,,,,,,,,,,1991,,,,,,
+NOW THEN THINK,92,,,,,,,,,,,,,,1992,,,,,,
+NOW THEN GUESS,93,,,,,,,,,,,,,,1993,,,,,,
+NOW THEN ARE,94,,,,,,,,,,,,,,1994,,,,,,
+NOW THEN GIVE,95,,,,,,,,,,,,,,1995,,,,,,
+NOW THEN SAY,96,,,,,,,,,,,,,,1996,,,,,,
+NOW THEN NAME,97,,,,,,,,,,,,,,1997,,,,,,
+NOW THEN SEE,98,,,,,,,,,,,,,,1998,,,,,,
+NOW THEN TELL,99,,,,,,,,,,,,,,1999,,,,,,
+TRY,100,,Joker,,,,,,,,,,,,2000,grey,gold,dollar coin,$100 ,,
+OKAY CAN,,,Ace of Clubs,,,,,,,,,,,,,,,,,,
+OKAY THINK,,,Two of Clubs,,,,,,,,,,,,,,,,,,
+OKAY GUESS,,,Three of Clubs,,,,,,,,,,,,,,,,,,
+OKAY ARE,,,Four of Clubs,,,,,,,,,,,,,,,,,,
+OKAY GIVE,,,Five of Clubs,,,,,,,,,,,,,,,,,,
+OKAY SAY,,,Six of Clubs,,,,,,,,,,,,,,,,,,
+OKAY NAME,,,Seven of Clubs,,,,,,,,,,,,,,,,,,
+OKAY SEE,,,Eight of Clubs,,,,,,,,,,,,,,,,,,
+OKAY TELL,,,Nine of Clubs,,,,,,,,,,,,,,,,,,
+OKAY TRY,,,Ten of Clubs,,,,,,,,,,,,,,,,,,
+OKAY WHAT,,,Jack of Clubs,,,,,,,,,,,,,,,,,,
+OKAY DO,,,Queen of Clubs,,,,,,,,,,,,,,,,,,
+OKAY COULD,,,King of Clubs,,,,,,,,,,,,,,,,,,
+ALL RIGHT WHAT,,,Jack of Diamonds,,,,,,,,,,,,,,,,,,
+ALL RIGHT DO,,,Queen of Diamonds,,,,,,,,,,,,,,,,,,
+ALL RIGHT COULD,,,King of Diamonds,,,,,,,,,,,,,,,,,,
+WELL WHAT,,,Jack of Spades,,,,,,,,,,,,,,,,,,
+WELL DO,,,Queen of Spades,,,,,,,,,,,,,,,,,,
+WELL COULD,,,King of Spades,,,,,,,,,,,,,,,,,,
+COOL TRY,,,Ten of Hearts,,,,,,,,,,,,,,,,,,
+COOL CAN,,,Ace of Hearts,,,,,,,,,,,,,,,,,,
+COOL THINK,,,Two of Hearts,,,,,,,,,,,,,,,,,,
+COOL GUESS,,,Three of Hearts,,,,,,,,,,,,,,,,,,
+COOL ARE,,,Four of Hearts,,,,,,,,,,,,,,,,,,
+COOL GIVE,,,Five of Hearts,,,,,,,,,,,,,,,,,,
+COOL SAY,,,Six of Hearts,,,,,,,,,,,,,,,,,,
+COOL NAME,,,Seven of Hearts,,,,,,,,,,,,,,,,,,
+COOL SEE,,,Eight of Hearts,,,,,,,,,,,,,,,,,,
+COOL TELL,,,Nine of Hearts,,,,,,,,,,,,,,,,,,
+COOL WHAT,,,Jack of Hearts,,,,,,,,,,,,,,,,,,
+COOL DO,,,Queen of Hearts,,,,,,,,,,,,,,,,,,
+COOL COULD,,,King of Hearts,,,,,,,,,,,,,,,,,,
