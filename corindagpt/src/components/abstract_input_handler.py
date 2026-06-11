@@ -82,6 +82,9 @@ class KeyboardInputHandler(AbstractInputHandler):
         self._last_brief_at: Optional[float] = None
         self._double_tap_pending: bool = False
         self._event_emitted: bool = False
+        # BRIEF emission is deferred by the compound window so the first tap
+        # of a double-tap+hold does not fire the brief action prematurely
+        self._pending_brief_timer: Optional[asyncio.TimerHandle] = None
 
     def _is_hotkey(self, key: object) -> bool:
         return self.hotkey_name in str(key).lower()
@@ -113,6 +116,13 @@ class KeyboardInputHandler(AbstractInputHandler):
                 pass
             finally:
                 self._sustained_timer = None
+        if self._pending_brief_timer is not None:
+            try:
+                self._pending_brief_timer.cancel()
+            except Exception:
+                pass
+            finally:
+                self._pending_brief_timer = None
 
     def _schedule_sustained(self) -> None:
         if self._sustained_timer is not None:
@@ -145,6 +155,14 @@ class KeyboardInputHandler(AbstractInputHandler):
         self._event_emitted = False
         now = time.monotonic()
         self._t_press = now
+        # A pending BRIEF means this press arrived inside the compound
+        # window: cancel the brief action, this is a double-tap sequence
+        def _cancel_pending_brief() -> None:
+            if self._pending_brief_timer is not None:
+                self._pending_brief_timer.cancel()
+                self._pending_brief_timer = None
+                logger.info("KeyboardInputHandler: pending BRIEF cancelled (double-tap detected)")
+        self.loop.call_soon_threadsafe(_cancel_pending_brief)
         # Detect double-tap window
         if self._last_brief_at is not None:
             if (now - self._last_brief_at) * 1000.0 <= self.compound_window_ms:
@@ -184,12 +202,22 @@ class KeyboardInputHandler(AbstractInputHandler):
         if not self._event_emitted:
             if duration_ms <= self.brief_max_ms:
                 self._last_brief_at = now
-                logger.info("KeyboardInputHandler: emitted BRIEF (held=%d ms) on release", duration_ms)
-                # _on_release runs on the pynput thread; create_task is not thread-safe here
-                asyncio.run_coroutine_threadsafe(
-                    self._on_event(InputEvent(pattern=InputPattern.BRIEF, timestamp=now, meta={"held_ms": duration_ms})),
-                    self.loop,
-                )
+                # Defer emission by the compound window: if a second press
+                # lands inside it, _on_press cancels this and the tap counts
+                # as the start of a COMPOUND instead
+                def _emit_brief(now: float = now, duration_ms: int = duration_ms) -> None:
+                    self._pending_brief_timer = None
+                    logger.info("KeyboardInputHandler: emitted BRIEF (held=%d ms) after compound window", duration_ms)
+                    self.loop.create_task(
+                        self._on_event(InputEvent(pattern=InputPattern.BRIEF, timestamp=now, meta={"held_ms": duration_ms}))
+                    )
+
+                def _schedule_brief() -> None:
+                    self._pending_brief_timer = self.loop.call_later(
+                        max(0.0, self.compound_window_ms / 1000.0), _emit_brief
+                    )
+
+                self.loop.call_soon_threadsafe(_schedule_brief)
             elif duration_ms >= self.sustained_min_ms:
                 pattern = InputPattern.COMPOUND if self._double_tap_pending else InputPattern.SUSTAINED
                 logger.info("KeyboardInputHandler: emitted %s (held=%d ms) on release", pattern, duration_ms)
