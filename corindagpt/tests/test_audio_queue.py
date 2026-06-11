@@ -21,19 +21,29 @@ def test_preload_sequential_order(tmp_path):
     assert len(q) == 3
 
 
-def test_push_front_takes_priority(tmp_path):
+def test_push_priority_takes_priority(tmp_path):
     q = AudioQueue()
     q.preload_paths([_wav_file(tmp_path, "clip.wav")])
-    q.push_front(AudioItem(label="llm-response", data=b"RIFFxxxxWAVE"))
+    q.push_priority(AudioItem(label="llm-response", data=b"RIFFxxxxWAVE"))
     assert q._items[0].label == "llm-response"
     assert q._items[1].label == "clip.wav"
+
+
+def test_stacked_priority_items_play_fifo(tmp_path):
+    q = AudioQueue()
+    q.preload_paths([_wav_file(tmp_path, "clip.wav")])
+    q.push_priority(AudioItem(label="answer-1", data=b"RIFF1"))
+    q.push_priority(AudioItem(label="answer-2", data=b"RIFF2"))
+    q.push_priority(AudioItem(label="answer-3", data=b"RIFF3"))
+    labels = [item.label for item in q._items]
+    assert labels == ["answer-1", "answer-2", "answer-3", "clip.wav"]
 
 
 @pytest.mark.asyncio
 async def test_play_next_consumes_priority_item_then_loops_preloaded(tmp_path):
     q = AudioQueue(loop_preloaded=True)
     q.preload_paths([_wav_file(tmp_path, "clip.wav")])
-    q.push_front(AudioItem(label="llm-response", data=b"RIFFxxxxWAVE"))
+    q.push_priority(AudioItem(label="llm-response", data=b"RIFFxxxxWAVE"))
     with patch("src.services.audio_queue.tts_service.play", new=AsyncMock()) as mock_play:
         assert (await q.play_next()).label == "llm-response"
         assert (await q.play_next()).label == "clip.wav"

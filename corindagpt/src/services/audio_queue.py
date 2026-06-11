@@ -63,9 +63,22 @@ class AudioQueue:
     def is_empty(self) -> bool:
         return not self._items
 
-    def push_front(self, item: AudioItem) -> None:
-        self._items.appendleft(item)
-        logger.info("AudioQueue: prioritized %r at front (queue size %d)", item.label, len(self._items))
+    def push_priority(self, item: AudioItem) -> None:
+        """Insert ahead of preloaded phrases, behind earlier priority items.
+
+        Stacked LLM responses therefore play first-in-first-out among
+        themselves (FR8 prioritizes them over the preloaded clips only).
+        """
+        idx = 0
+        for existing in self._items:
+            if existing.preloaded:
+                break
+            idx += 1
+        self._items.insert(idx, item)
+        logger.info(
+            "AudioQueue: prioritized %r at position %d (queue size %d)",
+            item.label, idx, len(self._items),
+        )
 
     def append(self, item: AudioItem) -> None:
         self._items.append(item)

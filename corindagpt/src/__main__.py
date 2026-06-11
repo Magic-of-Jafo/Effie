@@ -258,7 +258,7 @@ async def main() -> None:
                         try:
                             if content and content.strip():
                                 audio_bytes = await tts_service.synthesize(content)
-                                audio_queue.push_front(
+                                audio_queue.push_priority(
                                     AudioItem(label=f"LLM: {content[:40]}", data=audio_bytes)
                                 )
                         except Exception as tts_exc:
