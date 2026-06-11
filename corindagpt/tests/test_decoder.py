@@ -89,6 +89,12 @@ def test_stt_spelling_variant_alright():
     assert results[0]["Number or date"] == "79"
 
 
+def test_stt_spelling_variant_allright():
+    results = decoder.decode_to_results("Allright now, can you sense it?")
+    assert results[0]["code_phrase"] == "ALL RIGHT NOW CAN"
+    assert results[0]["Number or date"] == "51"
+
+
 def test_punctuation_and_case_insensitivity():
     results = decoder.decode_to_results("NOW... try to remember!")
     assert results[0]["code_phrase"] == "NOW TRY"

@@ -64,8 +64,10 @@ class _CodeTable:
 
 
 # STT spelling variants that must match the code table's wording
+# (ALRIGHT/ALLRIGHT handling carried over from the original decode_en_rapport.py)
 _WORD_NORMALIZATIONS = {
     "ALRIGHT": "ALL RIGHT",
+    "ALLRIGHT": "ALL RIGHT",
     "OK": "OKAY",
 }
 
