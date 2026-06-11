@@ -102,15 +102,44 @@ def _split_sentences(text: str) -> List[str]:
     return [p for p in (part.strip() for part in parts) if p]
 
 
-def _find_code_phrase(sentence: str, table: _CodeTable) -> Optional[str]:
-    """Leftmost match wins; at each position the longest phrase wins."""
-    words = _clean(sentence).split()
-    for i in range(len(words)):
-        for length in range(min(table.max_phrase_words, len(words) - i), 0, -1):
-            candidate = " ".join(words[i : i + length])
+def _find_codes(sentences: List[str], table: _CodeTable) -> List[Tuple[str, str]]:
+    """Find code phrases across the whole transcript as one word stream.
+
+    STT inserts punctuation by guesswork ("Cool. Could you..."), so phrases
+    must be allowed to span sentence boundaries. Leftmost match wins and the
+    longest phrase wins at each position. After a match, scanning resumes at
+    the next sentence: later code-words in the same sentence (e.g. the TELL
+    in "could you tell me...") are conversational, not codes.
+
+    Returns a list of (phrase, context) pairs in transcript order.
+    """
+    words: List[Tuple[str, int]] = []  # (cleaned word, sentence index)
+    for si, sentence in enumerate(sentences):
+        for w in _clean(sentence).split():
+            words.append((w, si))
+
+    found: List[Tuple[str, str]] = []
+    i, n = 0, len(words)
+    while i < n:
+        matched = None
+        for length in range(min(table.max_phrase_words, n - i), 0, -1):
+            candidate = " ".join(w for w, _ in words[i : i + length])
             if candidate in table.phrase_to_row:
-                return candidate
-    return None
+                matched = (candidate, length)
+                break
+        if matched is None:
+            i += 1
+            continue
+        phrase, length = matched
+        start_sent = words[i][1]
+        end_sent = words[i + length - 1][1]
+        context = " ".join(sentences[start_sent : end_sent + 1])
+        found.append((phrase, context))
+        # Resume at the first word of a later sentence
+        i += length
+        while i < n and words[i][1] <= end_sent:
+            i += 1
+    return found
 
 
 def _combine_time(results: List[Dict[str, str]]) -> None:
@@ -145,14 +174,11 @@ def decode_to_results(text: str, *, config: Optional[Dict[str, Any]] = None) -> 
         working = working[reset_pos + len(RESET_WORD):].strip()
 
     results: List[Dict[str, str]] = []
-    for sentence in _split_sentences(working):
-        phrase = _find_code_phrase(sentence, table)
-        if phrase is None:
-            continue
+    for phrase, context in _find_codes(_split_sentences(working), table):
         data = table.lookup(phrase)
         if not data:
             continue
-        entry: Dict[str, str] = {"CONTEXT": sentence, "code_phrase": phrase}
+        entry: Dict[str, str] = {"CONTEXT": context, "code_phrase": phrase}
         entry.update(data)
         results.append(entry)
 

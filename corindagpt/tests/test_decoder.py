@@ -28,12 +28,26 @@ def test_longest_match_wins_over_substring():
 
 
 def test_playing_card_in_single_phrase():
-    results = decoder.decode_to_results("Cool. Could you name this card?")
-    # Sentence split puts "Cool." alone; "Could..." alone -> COULD is not a
-    # phrase by itself, so test the unsplit form too
     results = decoder.decode_to_results("Cool, could you name this card?")
     assert results[0]["code_phrase"] == "COOL COULD"
     assert results[0]["Playing Card Value"] == "King of Hearts"
+
+
+def test_phrase_spans_stt_punctuation():
+    # Real STT output: "Cool. Could you tell me what playing card I'm thinking of?"
+    # The period must not break COOL COULD, and the conversational TELL after
+    # the match must not register as a second code
+    results = decoder.decode_to_results(
+        "Cool. Could you tell me what playing card I'm thinking of?"
+    )
+    assert len(results) == 1
+    assert results[0]["code_phrase"] == "COOL COULD"
+    assert results[0]["Playing Card Value"] == "King of Hearts"
+
+
+def test_codes_in_separate_sentences_both_found():
+    results = decoder.decode_to_results("Can you feel it? Think hard now.")
+    assert [r["code_phrase"] for r in results] == ["CAN", "THINK"]
 
 
 def test_sorry_resets_previous_codes():
