@@ -18,3 +18,6 @@ corindagpt/.venv/
 .vscode/
 .idea/
 .history/
+
+# Debug artifacts
+last_tts.wav
