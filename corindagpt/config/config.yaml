@@ -31,7 +31,7 @@ audio_queue:
   # immediate: LLM responses stream straight to the speakers (conversational)
   # queued: responses are synthesized and parked at the queue front; the next
   #         brief input (the pull string) speaks them (doll mode, FR8)
-  response_playback: "immediate"
+  response_playback: "queued"
   preload:
     # Directory of clips loaded into the queue at startup (FR9).
     # Generate phrase audio from the CSV with: python -m scripts.generate_phrase_audio
