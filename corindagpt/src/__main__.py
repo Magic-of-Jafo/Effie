@@ -92,8 +92,10 @@ async def main() -> None:
     # Priority audio queue for BRIEF inputs (FR8/FR9)
     from .services.audio_queue import AudioItem, build_default_queue, response_playback_mode
     from .services import decoder as decoder_service
+    from .services.conversational_memory import build_memory
 
     audio_queue = build_default_queue(cfg)
+    memory = build_memory(cfg)
     response_mode = response_playback_mode(cfg)
     logger.info("LLM response playback mode: %s", response_mode)
 
@@ -119,6 +121,9 @@ async def main() -> None:
             played = await audio_queue.play_next(config=cfg)
             if played is None:
                 logger.info("BRIEF input: audio queue empty")
+            elif played.text:
+                # The audience heard Effie say this; she must remember it
+                memory.add_assistant(played.text)
         except Exception as exc:
             logger.error("Audio queue playback failed: %s", exc)
 
@@ -181,6 +186,7 @@ async def main() -> None:
                         int((_mono() - t_release_mono) * 1000),
                         transcript,
                     )
+                    raw_transcript = transcript
                     # SUSTAINED runs the decoder; COMPOUND bypasses it (FR4/FR6)
                     if mode == "decode":
                         transcript = decoder_service.decode(transcript, config=cfg)
@@ -238,11 +244,12 @@ async def main() -> None:
                         # (string pull) speaks it. Nothing plays now.
                         try:
                             if use_tools:
-                                content, tool_calls = await gpt_service.chat_with_tools(rendered)
+                                content, tool_calls = await gpt_service.chat_with_tools(rendered, history=memory.messages())
                             else:
-                                content = await gpt_service.generate_response(rendered)
+                                content = await gpt_service.generate_response(rendered, history=memory.messages())
                                 tool_calls = []
                             logger.info("LLM Response (queued): %s", content)
+                            memory.add_exchange(raw_transcript, content)
                         except Exception as llm_exc:
                             logger.error("LLM request failed: %s", llm_exc)
                             fsm.transition(State.IDLE)
@@ -266,10 +273,11 @@ async def main() -> None:
                         sink: dict = {}
                         try:
                             await tts_service.stream_sentences_and_play(
-                                gpt_service.stream_chat(rendered, sink=sink),
+                                gpt_service.stream_chat(rendered, sink=sink, history=memory.messages()),
                                 started_at_monotonic=t_release_mono,
                             )
                             logger.info("LLM Response: %s", sink.get("content", ""))
+                            memory.add_exchange(raw_transcript, sink.get("content", ""))
                         except Exception as pipe_exc:
                             logger.error("Streamed LLM->TTS pipeline failed: %s", pipe_exc)
                             fsm.transition(State.IDLE)
@@ -281,11 +289,12 @@ async def main() -> None:
 
                     try:
                         if use_tools:
-                            content, tool_calls = await gpt_service.chat_with_tools(rendered)
+                            content, tool_calls = await gpt_service.chat_with_tools(rendered, history=memory.messages())
                         else:
-                            content = await gpt_service.generate_response(rendered)
+                            content = await gpt_service.generate_response(rendered, history=memory.messages())
                             tool_calls = []
                         logger.info("LLM Response: %s", content)
+                        memory.add_exchange(raw_transcript, content)
                     except Exception as llm_exc:
                         logger.error("LLM generate_response failed: %s", llm_exc)
                         # PROCESSING -> IDLE on failure as well

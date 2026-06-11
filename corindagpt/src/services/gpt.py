@@ -95,7 +95,7 @@ def _completion_params(model: str) -> Dict[str, Any]:
     return {"max_tokens": 64, "temperature": 0.7}
 
 
-async def generate_response(prompt_text: str, *, http_client: Optional[httpx.AsyncClient] = None, config: Optional[Dict[str, Any]] = None) -> str:
+async def generate_response(prompt_text: str, *, history: Optional[List[Dict[str, str]]] = None, http_client: Optional[httpx.AsyncClient] = None, config: Optional[Dict[str, Any]] = None) -> str:
     """Generate a short text response from the configured LLM provider.
 
     Uses OpenAI Chat Completions via httpx.AsyncClient.
@@ -121,10 +121,9 @@ async def generate_response(prompt_text: str, *, http_client: Optional[httpx.Asy
         "Content-Type": "application/json",
     }
     system_message = _build_system_message(cfg)
-    messages: List[Dict[str, Any]] = [
-        {"role": "system", "content": system_message},
-        {"role": "user", "content": prompt_text.strip()},
-    ]
+    messages: List[Dict[str, Any]] = [{"role": "system", "content": system_message}]
+    messages.extend(history or [])
+    messages.append({"role": "user", "content": prompt_text.strip()})
     payload: Dict[str, Any] = {
         "model": model,
         "messages": messages,
@@ -153,6 +152,7 @@ async def stream_chat(
     prompt_text: str,
     *,
     sink: Optional[Dict[str, Any]] = None,
+    history: Optional[List[Dict[str, str]]] = None,
     http_client: Optional[httpx.AsyncClient] = None,
     config: Optional[Dict[str, Any]] = None,
 ) -> AsyncIterator[str]:
@@ -182,10 +182,9 @@ async def stream_chat(
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
-    messages: List[Dict[str, Any]] = [
-        {"role": "system", "content": _build_system_message(cfg)},
-        {"role": "user", "content": prompt_text.strip()},
-    ]
+    messages: List[Dict[str, Any]] = [{"role": "system", "content": _build_system_message(cfg)}]
+    messages.extend(history or [])
+    messages.append({"role": "user", "content": prompt_text.strip()})
     payload: Dict[str, Any] = {
         "model": model,
         "messages": messages,
@@ -242,7 +241,7 @@ async def stream_chat(
         sink["tool_calls"] = tool_calls
 
 
-async def chat_with_tools(prompt_text: str, *, http_client: Optional[httpx.AsyncClient] = None, config: Optional[Dict[str, Any]] = None) -> Tuple[str, List[Dict[str, Any]]]:
+async def chat_with_tools(prompt_text: str, *, history: Optional[List[Dict[str, str]]] = None, http_client: Optional[httpx.AsyncClient] = None, config: Optional[Dict[str, Any]] = None) -> Tuple[str, List[Dict[str, Any]]]:
     """Chat call that returns both content and tool_calls (if any)."""
     if not isinstance(prompt_text, str) or not prompt_text.strip():
         raise ValueError("prompt_text must be a non-empty string")
@@ -265,10 +264,9 @@ async def chat_with_tools(prompt_text: str, *, http_client: Optional[httpx.Async
         "Content-Type": "application/json",
     }
     system_message = _build_system_message(cfg)
-    messages: List[Dict[str, Any]] = [
-        {"role": "system", "content": system_message},
-        {"role": "user", "content": prompt_text.strip()},
-    ]
+    messages: List[Dict[str, Any]] = [{"role": "system", "content": system_message}]
+    messages.extend(history or [])
+    messages.append({"role": "user", "content": prompt_text.strip()})
     payload: Dict[str, Any] = {
         "model": model,
         "messages": messages,

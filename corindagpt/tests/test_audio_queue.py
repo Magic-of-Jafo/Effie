@@ -35,10 +35,10 @@ async def test_play_next_consumes_priority_item_then_loops_preloaded(tmp_path):
     q.preload_paths([_wav_file(tmp_path, "clip.wav")])
     q.push_front(AudioItem(label="llm-response", data=b"RIFFxxxxWAVE"))
     with patch("src.services.audio_queue.tts_service.play", new=AsyncMock()) as mock_play:
-        assert await q.play_next() == "llm-response"
-        assert await q.play_next() == "clip.wav"
+        assert (await q.play_next()).label == "llm-response"
+        assert (await q.play_next()).label == "clip.wav"
         # LLM item is gone; looping preloaded clip returned to the back
-        assert await q.play_next() == "clip.wav"
+        assert (await q.play_next()).label == "clip.wav"
         assert mock_play.await_count == 3
     assert len(q) == 1  # only the looping clip remains
 
@@ -48,7 +48,7 @@ async def test_play_next_no_loop_consumes(tmp_path):
     q = AudioQueue(loop_preloaded=False)
     q.preload_paths([_wav_file(tmp_path, "clip.wav")])
     with patch("src.services.audio_queue.tts_service.play", new=AsyncMock()):
-        assert await q.play_next() == "clip.wav"
+        assert (await q.play_next()).label == "clip.wav"
         assert await q.play_next() is None
     assert q.is_empty()
 

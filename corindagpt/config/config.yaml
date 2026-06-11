@@ -27,6 +27,10 @@ transitions:
     enabled: true
     keyphrases: ["next phase", "advance phase", "switch to phase {n}"]
 
+memory:
+  # Conversation turns Effie remembers (user + her own lines, incl. played phrases)
+  max_turns: 10
+
 audio_queue:
   # immediate: LLM responses stream straight to the speakers (conversational)
   # queued: responses are synthesized and parked at the queue front; the next

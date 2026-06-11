@@ -31,6 +31,7 @@ class AudioItem:
     data: Optional[bytes] = None
     path: Optional[Path] = None
     preloaded: bool = False  # preloaded clips can loop; LLM responses never do
+    text: Optional[str] = None  # spoken text, recorded into conversational memory
 
     def load_bytes(self) -> Optional[bytes]:
         if self.data is not None:
@@ -82,8 +83,8 @@ class AudioQueue:
         logger.info("AudioQueue: preloaded %d clips (%s order)", len(items), order)
         return len(items)
 
-    async def play_next(self, *, config: Optional[Dict[str, Any]] = None) -> Optional[str]:
-        """Play and consume the front item; returns its label or None if empty.
+    async def play_next(self, *, config: Optional[Dict[str, Any]] = None) -> Optional[AudioItem]:
+        """Play and consume the front item; returns it, or None if empty.
 
         Looping preloaded clips are re-appended to the back after playing.
         """
@@ -95,12 +96,12 @@ class AudioQueue:
             data = item.load_bytes()
             if data is None:
                 logger.warning("AudioQueue: skipping unreadable item %r", item.label)
-                return item.label
+                return item
             logger.info("AudioQueue: playing %r (%d left)", item.label, len(self._items))
             await tts_service.play(data, config=config)
             if item.preloaded and self._loop_preloaded:
                 self._items.append(item)
-            return item.label
+            return item
 
 
 def _resolve_dir(raw: str) -> Path:
@@ -136,7 +137,27 @@ def build_default_queue(cfg: Optional[Dict[str, Any]] = None) -> AudioQueue:
         [*directory.glob("*.mp3"), *directory.glob("*.wav")], key=lambda p: p.name.lower()
     )
     queue.preload_paths(paths, order=str(preload_cfg.get("order") or "sequential"))
+    _attach_phrase_texts(queue)
     return queue
+
+
+def _attach_phrase_texts(queue: AudioQueue) -> None:
+    """Map phrase_NN clips to their CSV lines so plays can enter memory."""
+    csv_path = PROJECT_ROOT / "knowledge-base" / "pre_programmed_phrases.csv"
+    if not csv_path.exists():
+        return
+    import csv as _csv
+
+    with csv_path.open("r", encoding="utf-8-sig") as fh:
+        phrases = [row[0].strip() for row in _csv.reader(fh) if row and row[0].strip()]
+    import re as _re
+
+    for item in queue._items:
+        m = _re.match(r"phrase_(\d+)\.", item.label)
+        if m:
+            idx = int(m.group(1)) - 1
+            if 0 <= idx < len(phrases):
+                item.text = phrases[idx]
 
 
 def response_playback_mode(cfg: Optional[Dict[str, Any]] = None) -> str:
