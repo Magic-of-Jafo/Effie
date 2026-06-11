@@ -81,6 +81,18 @@ def _build_system_message(cfg: Dict[str, Any]) -> str:
     return base + instr
 
 
+def _completion_params(model: str) -> Dict[str, Any]:
+    """Model-appropriate sampling/limit parameters.
+
+    gpt-5-family reasoning models reject max_tokens and non-default
+    temperature; they take max_completion_tokens (which also counts
+    reasoning tokens) and reasoning_effort instead.
+    """
+    if model.startswith("gpt-5") and "chat" not in model:
+        return {"max_completion_tokens": 2000, "reasoning_effort": "none"}
+    return {"max_tokens": 64, "temperature": 0.7}
+
+
 async def generate_response(prompt_text: str, *, http_client: Optional[httpx.AsyncClient] = None, config: Optional[Dict[str, Any]] = None) -> str:
     """Generate a short text response from the configured LLM provider.
 
@@ -114,13 +126,15 @@ async def generate_response(prompt_text: str, *, http_client: Optional[httpx.Asy
     payload: Dict[str, Any] = {
         "model": model,
         "messages": messages,
-        "max_tokens": 64,
-        "temperature": 0.7,
+        **_completion_params(model),
     }
     tools = _build_tools_config(cfg)
     if tools:
         payload["tools"] = tools
         payload["tool_choice"] = "auto"
+        # gpt-5.4 rejects reasoning_effort + function tools on chat/completions;
+        # the default effort is light enough for our short prompts
+        payload.pop("reasoning_effort", None)
     resp = await client.post("/chat/completions", headers=headers, json=payload)
     resp.raise_for_status()
     data = resp.json()
@@ -173,14 +187,16 @@ async def stream_chat(
     payload: Dict[str, Any] = {
         "model": model,
         "messages": messages,
-        "max_tokens": 64,
-        "temperature": 0.7,
         "stream": True,
+        **_completion_params(model),
     }
     tools = _build_tools_config(cfg)
     if tools:
         payload["tools"] = tools
         payload["tool_choice"] = "auto"
+        # gpt-5.4 rejects reasoning_effort + function tools on chat/completions;
+        # the default effort is light enough for our short prompts
+        payload.pop("reasoning_effort", None)
 
     parts: List[str] = []
     # tool_call deltas arrive fragmented; merge them by index
@@ -254,13 +270,15 @@ async def chat_with_tools(prompt_text: str, *, http_client: Optional[httpx.Async
     payload: Dict[str, Any] = {
         "model": model,
         "messages": messages,
-        "max_tokens": 64,
-        "temperature": 0.7,
+        **_completion_params(model),
     }
     tools = _build_tools_config(cfg)
     if tools:
         payload["tools"] = tools
         payload["tool_choice"] = "auto"
+        # gpt-5.4 rejects reasoning_effort + function tools on chat/completions;
+        # the default effort is light enough for our short prompts
+        payload.pop("reasoning_effort", None)
     resp = await client.post("/chat/completions", headers=headers, json=payload)
     resp.raise_for_status()
     data = resp.json()

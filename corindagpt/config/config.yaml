@@ -1,7 +1,7 @@
 openai_api_key: "YOUR_OPENAI_API_KEY"
 elevenlabs_api_key: "YOUR_ELEVENLABS_API_KEY"
 model_names:
-  text: "gpt-4o-mini"
+  text: "gpt-5.4-nano"
   transcription: "whisper-1"
 performance_plan: [1, 2, 3, 4, 5]
 transcription:
