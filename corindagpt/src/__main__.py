@@ -97,12 +97,17 @@ async def main() -> None:
 
     # Interaction mode for the press in progress, set by pattern events:
     # None (brief/dead-zone), "decode" (sustained), or "bypass" (compound)
-    interaction = {"mode": None}
+    interaction = {"mode": None, "discard": None}
 
     async def on_press() -> None:
         # Transition IDLE -> LISTENING; ignore press if not allowed
         if fsm.transition(State.LISTENING):
             interaction["mode"] = None
+            # A discard from a just-released tap may still hold the recorder
+            # lock; wait for it (milliseconds) or start_recording is a no-op
+            pending = interaction.get("discard")
+            if pending is not None and not pending.done():
+                await pending
             await recorder.start_recording()
         else:
             logger.debug("Ignoring press: transition to LISTENING not allowed from %s", fsm.state)
@@ -139,7 +144,7 @@ async def main() -> None:
                 except Exception as exc:
                     logger.debug("Recording discard failed: %s", exc)
 
-            asyncio.create_task(_discard())
+            interaction["discard"] = asyncio.create_task(_discard())
             logger.debug("Release without sustained/compound pattern; recording discarded")
             return
 
