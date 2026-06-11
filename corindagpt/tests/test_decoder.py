@@ -95,6 +95,37 @@ def test_stt_spelling_variant_allright():
     assert results[0]["Number or date"] == "51"
 
 
+def test_mid_table_headers_partial_columns():
+    # Row 30 introduces *Vegetable/*Instrument/*Flower part-way down their
+    # columns; row 31 must use the new categories, not row 0's Month/Day/Material
+    results = decoder.decode_to_results("Well, can you tell me what vegetable I am holding?")
+    r = results[0]
+    assert r["code_phrase"] == "WELL CAN"
+    assert r["Vegetable"] == "Asparagus"
+    assert r["Instrument"] == "Accordian"
+    assert r["Flower"] == "Aster"
+    assert "Month" not in r and "Day" not in r and "Material" not in r
+
+
+def test_mid_table_headers_row60_block():
+    # Row 60 switches State/City/Gem/Household Article -> Holiday/Animal/Dog Breed/Bird
+    results = decoder.decode_to_results("Alright then, tell me what my favorite bird is?")
+    r = results[0]
+    assert r["Bird"] == "Sparrow"
+    assert r["Animal"] == "Seal"
+    assert r["Dog Breed"] == "Spaniel"
+    assert r["Holiday"] == "Saint Patrick's Day"
+    assert "Household Article" not in r and "City" not in r
+
+
+def test_rows_above_mid_table_headers_keep_original_categories():
+    # CAN is row 1, far above the row-30 header switch: col 13 is still Month
+    results = decoder.decode_to_results("Can you hear me?")
+    r = results[0]
+    assert r["Month"] == "January"
+    assert "Vegetable" not in r
+
+
 def test_punctuation_and_case_insensitivity():
     results = decoder.decode_to_results("NOW... try to remember!")
     assert results[0]["code_phrase"] == "NOW TRY"

@@ -25,39 +25,63 @@ _table_path: Optional[Path] = None
 _last_results: List[Dict[str, str]] = []
 
 
+def _is_header_cell(cell: str) -> bool:
+    return (cell or "").lstrip("﻿").strip().startswith("*")
+
+
+def _header_name(cell: str) -> str:
+    return (cell or "").lstrip("﻿").strip().lstrip("*").strip()
+
+
 class _CodeTable:
     """Coded-language lookup table loaded from a user-editable CSV.
 
-    Layout (Hadley-style): column 0 holds the code phrase; the header row
-    holds `*`-prefixed category names; each data cell is that phrase's
-    meaning within the category.
+    Layout (Hadley-style): column 0 holds the code phrase; `*`-prefixed
+    cells are category headers. Headers may appear mid-table - a column's
+    category for a given row is the nearest `*` cell ABOVE it (e.g. column
+    13 is *Month for rows 1-29 and becomes *Vegetable from row 31 on).
+    This mirrors the upward scan in the original project's get_key().
     """
 
-    def __init__(self, headers: List[str], rows: List[List[str]]) -> None:
-        self.categories: List[Optional[str]] = [
-            h.lstrip("﻿").strip().lstrip("*").strip() if h.strip().startswith(("*", "﻿*")) else None
-            for h in headers
-        ]
-        self.phrase_to_row: Dict[str, List[str]] = {}
+    def __init__(self, grid: List[List[str]]) -> None:
+        n_cols = max(len(row) for row in grid)
+        # Walk top to bottom tracking the active header per column, so each
+        # data row knows its categories at the time it appears
+        active: List[Optional[str]] = [None] * n_cols
+        self._row_categories: Dict[int, List[Optional[str]]] = {}
+        self.phrase_to_rowidx: Dict[str, int] = {}
+        self._rows: Dict[int, List[str]] = {}
         max_words = 1
-        for row in rows:
-            phrase = _clean(row[0]) if row else ""
-            if not phrase:
-                continue
-            self.phrase_to_row[phrase] = row
-            max_words = max(max_words, len(phrase.split()))
+        for r, row in enumerate(grid):
+            # Categories visible to this row come from rows strictly above
+            self._row_categories[r] = list(active)
+            for c in range(n_cols):
+                cell = row[c] if c < len(row) else ""
+                if _is_header_cell(cell):
+                    active[c] = _header_name(cell)
+            phrase = _clean(row[0]) if row and not _is_header_cell(row[0]) else ""
+            if phrase:
+                self.phrase_to_rowidx[phrase] = r
+                self._rows[r] = row
+                max_words = max(max_words, len(phrase.split()))
         self.max_phrase_words = max_words
 
+    @property
+    def phrase_to_row(self) -> Dict[str, int]:  # membership checks in matching
+        return self.phrase_to_rowidx
+
     def lookup(self, phrase: str) -> Optional[Dict[str, str]]:
-        row = self.phrase_to_row.get(phrase)
-        if row is None:
+        r = self.phrase_to_rowidx.get(phrase)
+        if r is None:
             return None
+        row = self._rows[r]
+        categories = self._row_categories[r]
         data: Dict[str, str] = {}
-        for idx, cell in enumerate(row[1:], start=1):
-            value = (cell or "").strip()
-            if not value:
+        for idx in range(1, len(row)):
+            value = (row[idx] or "").strip()
+            if not value or _is_header_cell(value):
                 continue
-            category = self.categories[idx] if idx < len(self.categories) else None
+            category = categories[idx] if idx < len(categories) else None
             if category:
                 data[category] = value
         return data
@@ -97,7 +121,7 @@ def _get_table(config: Optional[Dict[str, Any]] = None) -> _CodeTable:
             all_rows = [row for row in reader if any(cell.strip() for cell in row)]
         if not all_rows:
             raise ValueError(f"Decoder data file is empty: {path}")
-        _table = _CodeTable(headers=all_rows[0], rows=all_rows[1:])
+        _table = _CodeTable(all_rows)
         _table_path = path
         logger.info(
             "Decoder: loaded %d code phrases from %s", len(_table.phrase_to_row), path.name
