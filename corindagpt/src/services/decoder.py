@@ -195,11 +195,7 @@ def decode_to_results(text: str, *, config: Optional[Dict[str, Any]] = None) -> 
 
     if results:
         _last_results = results
-        return results
-    if _last_results:
-        logger.info("Decoder: no code phrase found; reusing previous decode")
-        return _last_results
-    return []
+    return results
 
 
 def _format_for_prompt(transcript: str, results: List[Dict[str, str]]) -> str:
@@ -237,8 +233,14 @@ def decode(text: str, *, config: Optional[Dict[str, Any]] = None) -> str:
         logger.error("Decoder failed (%s); passing transcript through", exc)
         return text
     if not results:
-        logger.info("Decoder: no code phrases detected")
-        return text
+        # Fuzzy/incomplete code (STT garble, flubbed phrase): a graceful
+        # in-character miss cues the magician to re-ask without guessing
+        logger.info("Decoder: no code phrases detected; instructing graceful miss")
+        return (
+            f"{text.strip()}\n\n"
+            "[SECRET NOTICE - the coded message did not come through clearly. "
+            'Respond with exactly: "My vision is not clear." and nothing else.]'
+        )
     logger.info(
         "Decoder: %d coded sentence(s) -> %s",
         len(results),

@@ -65,16 +65,14 @@ def test_time_combination_across_two_sentences():
     assert "Hour" not in results[0]
 
 
-def test_no_match_returns_empty_then_remembers_last():
+def test_no_match_returns_empty():
     assert decoder.decode_to_results("Nothing coded here at all.") == []
-    decoder.decode_to_results("Can you hear me?")
-    repeated = decoder.decode_to_results("Nothing coded here either.")
-    assert repeated and repeated[0]["code_phrase"] == "CAN"
 
 
-def test_decode_passthrough_without_codes():
-    text = "A perfectly innocent sentence."
-    assert decoder.decode(text) == text
+def test_decode_without_codes_instructs_graceful_miss():
+    out = decoder.decode("A perfectly innocent sentence.")
+    assert out.startswith("A perfectly innocent sentence.")
+    assert "My vision is not clear." in out
 
 
 def test_decode_appends_secret_block():
