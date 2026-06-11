@@ -25,9 +25,9 @@ class InputHandler:
     def __init__(
         self,
         loop: asyncio.AbstractEventLoop,
-        on_press_active: KeyHandler,
-        on_release_active: KeyHandler,
-        hotkey_name: str = "f12",
+        on_press_active: Optional[KeyHandler] = None,
+        on_release_active: Optional[KeyHandler] = None,
+        hotkey_name: Optional[str] = "f12",
         *,
         transition_hotkey_name: Optional[str] = None,
         transition_long_press_ms: int = 3000,
@@ -36,7 +36,10 @@ class InputHandler:
         self.loop = loop
         self.on_press_active = on_press_active
         self.on_release_active = on_release_active
-        self.hotkey_name = hotkey_name.lower()
+        # hotkey_name=None disables the primary record hotkey, leaving only
+        # the transition hotkey active (the record key is owned by the
+        # abstract input handler as of Story 3.2).
+        self.hotkey_name = hotkey_name.lower() if hotkey_name else None
         self._is_pressed = False
         self._listener: Optional["keyboard.Listener"] = None
         # Transition input
@@ -47,6 +50,8 @@ class InputHandler:
         self._transition_timer: Optional[asyncio.TimerHandle] = None
 
     def _is_hotkey(self, key: object) -> bool:
+        if not self.hotkey_name:
+            return False
         name = str(key).lower()
         return self.hotkey_name in name
 

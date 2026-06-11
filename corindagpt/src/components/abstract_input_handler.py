@@ -62,9 +62,15 @@ class KeyboardInputHandler(AbstractInputHandler):
         brief_max_ms: int = 250,
         sustained_min_ms: int = 600,
         compound_double_press_window_ms: int = 350,
+        on_press_raw: Optional[Callable[[], Awaitable[None]]] = None,
+        on_release_raw: Optional[Callable[[], Awaitable[None]]] = None,
     ) -> None:
         super().__init__(on_event=on_event)
         self.loop = loop
+        # Raw callbacks fire at physical press/release, before pattern
+        # classification — needed so recording can start immediately.
+        self.on_press_raw = on_press_raw
+        self.on_release_raw = on_release_raw
         self.hotkey_name = (hotkey_name or "f12").lower()
         self.brief_max_ms = int(max(0, brief_max_ms))
         self.sustained_min_ms = int(max(0, sustained_min_ms))
@@ -148,8 +154,10 @@ class KeyboardInputHandler(AbstractInputHandler):
         else:
             self._double_tap_pending = False
         logger.info("KeyboardInputHandler: hotkey '%s' pressed", self.hotkey_name)
-        # Schedule sustained threshold
-        self._schedule_sustained()
+        if self.on_press_raw is not None:
+            asyncio.run_coroutine_threadsafe(self.on_press_raw(), self.loop)
+        # Schedule sustained threshold on the loop thread (call_later is not thread-safe)
+        self.loop.call_soon_threadsafe(self._schedule_sustained)
 
     def _on_release(self, key: object) -> None:
         if not self._is_hotkey(key):
@@ -168,16 +176,27 @@ class KeyboardInputHandler(AbstractInputHandler):
         t_press = self._t_press or now
         duration_ms = int((now - t_press) * 1000)
         self._t_press = None
+        # Raw release first so the consumer can stop recording before any
+        # pattern event (e.g. BRIEF -> queue playback) lands on the loop.
+        if self.on_release_raw is not None:
+            asyncio.run_coroutine_threadsafe(self.on_release_raw(), self.loop)
         # If nothing emitted yet, decide BRIEF or SUSTAINED by duration
         if not self._event_emitted:
             if duration_ms <= self.brief_max_ms:
                 self._last_brief_at = now
                 logger.info("KeyboardInputHandler: emitted BRIEF (held=%d ms) on release", duration_ms)
-                self.loop.create_task(self._on_event(InputEvent(pattern=InputPattern.BRIEF, timestamp=now, meta={"held_ms": duration_ms})))
+                # _on_release runs on the pynput thread; create_task is not thread-safe here
+                asyncio.run_coroutine_threadsafe(
+                    self._on_event(InputEvent(pattern=InputPattern.BRIEF, timestamp=now, meta={"held_ms": duration_ms})),
+                    self.loop,
+                )
             elif duration_ms >= self.sustained_min_ms:
                 pattern = InputPattern.COMPOUND if self._double_tap_pending else InputPattern.SUSTAINED
                 logger.info("KeyboardInputHandler: emitted %s (held=%d ms) on release", pattern, duration_ms)
-                self.loop.create_task(self._on_event(InputEvent(pattern=pattern, timestamp=now, meta={"held_ms": duration_ms})))
+                asyncio.run_coroutine_threadsafe(
+                    self._on_event(InputEvent(pattern=pattern, timestamp=now, meta={"held_ms": duration_ms})),
+                    self.loop,
+                )
             # else: between thresholds; emit nothing
         # Reset double-tap state if release ends the sequence
         self._double_tap_pending = False

@@ -89,17 +89,45 @@ async def main() -> None:
     except Exception as exc:
         logger.warning("Recorder calibration failed (continuing): %s", exc)
 
+    # Pre-loaded clip queue for BRIEF inputs (FR5); priority/preload is 4.1/4.2
+    from .services.audio_queue import build_default_queue
+    from .services import decoder as decoder_service
+
+    audio_queue = build_default_queue(cfg)
+
+    # Interaction mode for the press in progress, set by pattern events:
+    # None (brief/dead-zone), "decode" (sustained), or "bypass" (compound)
+    interaction = {"mode": None}
+
     async def on_press() -> None:
         # Transition IDLE -> LISTENING; ignore press if not allowed
         if fsm.transition(State.LISTENING):
+            interaction["mode"] = None
             await recorder.start_recording()
         else:
             logger.debug("Ignoring press: transition to LISTENING not allowed from %s", fsm.state)
+
+    async def play_queue_next() -> None:
+        try:
+            played = await audio_queue.play_next(config=cfg)
+            if played is None:
+                logger.info("BRIEF input: audio queue empty")
+        except Exception as exc:
+            logger.error("Audio queue playback failed: %s", exc)
 
     async def on_release() -> None:
         # Only handle release if we are in LISTENING state
         if fsm.state != State.LISTENING:
             logger.debug("Ignoring release: not in LISTENING (current=%s)", fsm.state)
+            return
+
+        mode = interaction["mode"]
+        if mode is None:
+            # Brief tap or dead-zone release: discard the recording.
+            # BRIEF queue playback is triggered by its own pattern event.
+            await recorder.stop_recording()
+            fsm.transition(State.IDLE)
+            logger.debug("Release without sustained/compound pattern; recording discarded")
             return
 
         t_release = asyncio.get_running_loop().time()
@@ -133,6 +161,9 @@ async def main() -> None:
                         int((_mono() - t_release_mono) * 1000),
                         transcript,
                     )
+                    # SUSTAINED runs the decoder; COMPOUND bypasses it (FR4/FR6)
+                    if mode == "decode":
+                        transcript = decoder_service.decode(transcript, config=cfg)
                     # Load a phase-specific prompt and render with context
                     phase = phase_manager.current_phase
                     template = load_prompt_for_phase(phase)
@@ -261,7 +292,8 @@ async def main() -> None:
 
     loop = asyncio.get_running_loop()
 
-    # Abstract input (log-only integration)
+    # Abstract input handler owns the record hotkey: raw press/release drive
+    # recording, pattern events select the workflow (Story 3.2)
     abs_handler = None
     ip_cfg = (cfg.get("input_patterns") or {})
     enabled_sources = [str(s).lower() for s in (ip_cfg.get("enabled_sources") or [])]
@@ -274,6 +306,13 @@ async def main() -> None:
             logging.getLogger("input_patterns").info(
                 "Detected pattern: %s (held=%d ms)", getattr(evt, "pattern", "<unknown>"), held_ms
             )
+            if evt.pattern == InputPattern.SUSTAINED:
+                interaction["mode"] = "decode"
+            elif evt.pattern == InputPattern.COMPOUND:
+                interaction["mode"] = "bypass"
+            elif evt.pattern == InputPattern.BRIEF:
+                asyncio.create_task(play_queue_next())
+
         abs_handler = KeyboardInputHandler(
             loop=loop,
             on_event=on_abs_event,  # type: ignore[arg-type]
@@ -281,21 +320,42 @@ async def main() -> None:
             brief_max_ms=int(ip_cfg.get("brief_max_ms", 250)),
             sustained_min_ms=int(ip_cfg.get("sustained_min_ms", 600)),
             compound_double_press_window_ms=int(ip_cfg.get("compound_double_press_window_ms", 350)),
+            on_press_raw=on_press,
+            on_release_raw=on_release,
         )
         try:
             await abs_handler.start()
         except Exception as exc:
             logging.getLogger("input_patterns").warning("Abstract input handler failed to start: %s", exc)
+            abs_handler = None
 
-    input_handler = InputHandler(
-        loop=loop,
-        on_press_active=on_press,
-        on_release_active=on_release,
-        hotkey_name="f12",
-        transition_hotkey_name=trans_hotkey,
-        transition_long_press_ms=trans_ms,
-        on_transition_trigger=on_transition_trigger,
-    )
+    if abs_handler is not None:
+        # Legacy handler keeps only the phase-transition hotkey
+        input_handler = InputHandler(
+            loop=loop,
+            hotkey_name=None,
+            transition_hotkey_name=trans_hotkey,
+            transition_long_press_ms=trans_ms,
+            on_transition_trigger=on_transition_trigger,
+        )
+    else:
+        # Fallback: no abstract handler available; legacy handler drives
+        # recording directly (sustained-style only, decoder applied)
+        logger.warning("Abstract input handler unavailable; falling back to legacy press/hold input")
+
+        async def legacy_press() -> None:
+            await on_press()
+            interaction["mode"] = "decode"
+
+        input_handler = InputHandler(
+            loop=loop,
+            on_press_active=legacy_press,
+            on_release_active=on_release,
+            hotkey_name=str(ip_cfg.get("hotkey") or "f12"),
+            transition_hotkey_name=trans_hotkey,
+            transition_long_press_ms=trans_ms,
+            on_transition_trigger=on_transition_trigger,
+        )
 
     # Start keyboard listener in background thread
     listener = input_handler.start_keyboard_listener()
@@ -303,10 +363,12 @@ async def main() -> None:
         logger.error("Keyboard listener could not be started. Ensure 'pynput' is installed and permissions are granted.")
     else:
         logger.info(
-            "Ready. Hold F12 to record; release to %s. Long-press %s for %d ms to advance phase.",
-            "benchmark" if benchmark else "transcribe",
+            "Ready. Tap %s: play next queued clip | hold + speak: decoded pipeline | "
+            "double-tap + hold + speak: bypass decoder | long-press %s %d ms: advance phase.%s",
+            str(ip_cfg.get("hotkey") or "f12").upper(),
             trans_hotkey,
             trans_ms,
+            " (BENCHMARK MODE)" if benchmark else "",
         )
 
     try:
