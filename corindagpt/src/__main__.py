@@ -123,10 +123,23 @@ async def main() -> None:
 
         mode = interaction["mode"]
         if mode is None:
-            # Brief tap or dead-zone release: discard the recording.
-            # BRIEF queue playback is triggered by its own pattern event.
-            await recorder.stop_recording()
+            # Brief tap or dead-zone release: discard the recording and free
+            # the state machine immediately so a follow-up press (second tap
+            # of a COMPOUND) is not ignored. BRIEF queue playback is
+            # triggered by its own pattern event.
             fsm.transition(State.IDLE)
+
+            async def _discard() -> None:
+                try:
+                    abort = getattr(recorder, "abort_recording", None)
+                    if abort is not None:
+                        await abort()
+                    else:
+                        await recorder.stop_recording()
+                except Exception as exc:
+                    logger.debug("Recording discard failed: %s", exc)
+
+            asyncio.create_task(_discard())
             logger.debug("Release without sustained/compound pattern; recording discarded")
             return
 

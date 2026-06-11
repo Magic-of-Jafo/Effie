@@ -211,6 +211,34 @@ class SDPressHoldRecorder:
     async def start_recording(self) -> None:
         await asyncio.to_thread(self._start_blocking)
 
+    def _abort_blocking(self) -> None:
+        """Stop and discard immediately: no min-hold or flush sleeps.
+
+        Used when the press turns out to be a tap/dead-zone release and the
+        audio will be thrown away; keeps the state machine free for an
+        immediate follow-up press (e.g. the second press of a COMPOUND).
+        """
+        with self._lock:
+            if self._stream is not None:
+                try:
+                    self._stream.stop()
+                finally:
+                    try:
+                        self._stream.close()
+                    finally:
+                        self._stream = None
+            self._recording = False
+            self._t_start = None
+        try:
+            while True:
+                self._q.get_nowait()
+        except Exception:
+            pass
+        logger.debug("SDPressHoldRecorder: recording aborted/discarded")
+
+    async def abort_recording(self) -> None:
+        await asyncio.to_thread(self._abort_blocking)
+
     def _stop_blocking(self) -> bytes:
         # Enforce minimum hold
         if self._t_start is not None:

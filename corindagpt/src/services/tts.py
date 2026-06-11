@@ -346,34 +346,36 @@ async def play(audio_bytes: bytes, *, config: Optional[Dict[str, Any]] = None, s
             logger.info("elevenlabs.play backend unavailable or failed (%s); falling back.", exc)
             # Continue into MP3/WAV paths below
 
-    # MP3 direct path
+    # MP3 direct path: decode with pydub, play samples via sounddevice
+    # (pydub.playback relies on temp files that hit permission errors on Windows)
     if (len(audio_bytes) >= 3 and audio_bytes[:3] == b"ID3") or (len(audio_bytes) >= 2 and audio_bytes[:2] == b"\xff\xfb"):
         try:
             from pydub import AudioSegment  # type: ignore
-            from pydub.playback import play as pydub_play  # type: ignore
+            import numpy as np  # type: ignore
+            import sounddevice as sd  # type: ignore
 
             def _play_mp3(data: bytes) -> None:
-                # Optional warmup via silent segment
-                if warmup_ms > 0:
-                    warmup = AudioSegment.silent(duration=warmup_ms)
-                    pydub_play(warmup)
                 if settle_ms > 0:
                     import time as _t
                     _t.sleep(max(0.0, settle_ms / 1000.0))
                 seg = AudioSegment.from_file(io.BytesIO(data), format="mp3")
                 if preroll_ms > 0:
                     seg = AudioSegment.silent(duration=preroll_ms, frame_rate=seg.frame_rate) + seg
-                pydub_play(seg)
+                samples = np.array(seg.get_array_of_samples())
+                if seg.channels > 1:
+                    samples = samples.reshape((-1, seg.channels))
+                sd.play(samples, samplerate=seg.frame_rate)
+                sd.wait()
 
             if started_at_monotonic is not None:
                 elapsed_ms = int((monotonic() - started_at_monotonic) * 1000)
                 logger.info("Timing: release->play_start %d ms", elapsed_ms)
 
-            logger.info("Playback backend: pydub/mp3")
+            logger.info("Playback backend: sounddevice/mp3")
             await asyncio.to_thread(_play_mp3, audio_bytes)
             return
         except Exception as exc:
-            logger.info("pydub playback unavailable or failed (%s); falling back to WAV path.", exc)
+            logger.info("MP3 playback via sounddevice failed (%s); falling back to WAV path.", exc)
             # Fall through to WAV checks, which will error if data isn't WAV
 
     # WAV path

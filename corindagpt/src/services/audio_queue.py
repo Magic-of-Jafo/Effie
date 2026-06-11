@@ -72,8 +72,15 @@ class AudioQueue:
 def default_sfx_dir(cfg: Optional[Dict[str, Any]] = None) -> Path:
     cfg = cfg or load_config()
     assets_cfg: Dict[str, Any] = cfg.get("assets", {})
-    sfx_dir_str = assets_cfg.get("sfx_dir") or "corindagpt/assets/sfx"
-    return (Path(__file__).resolve().parents[2] / Path(sfx_dir_str)).resolve()
+    sfx_dir_str = assets_cfg.get("sfx_dir") or "assets/sfx"
+    p = Path(sfx_dir_str)
+    if p.is_absolute():
+        return p
+    base = Path(__file__).resolve().parents[2]  # corindagpt/
+    # Tolerate configured paths that include the project dir prefix
+    if p.parts and p.parts[0] == base.name:
+        p = Path(*p.parts[1:]) if len(p.parts) > 1 else Path(".")
+    return (base / p).resolve()
 
 
 def build_default_queue(cfg: Optional[Dict[str, Any]] = None) -> AudioQueue:
