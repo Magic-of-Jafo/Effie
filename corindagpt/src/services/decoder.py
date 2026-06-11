@@ -63,9 +63,18 @@ class _CodeTable:
         return data
 
 
+# STT spelling variants that must match the code table's wording
+_WORD_NORMALIZATIONS = {
+    "ALRIGHT": "ALL RIGHT",
+    "OK": "OKAY",
+}
+
+
 def _clean(text: str) -> str:
-    """Uppercase and strip everything but letters and spaces."""
-    return re.sub(r"\s+", " ", re.sub(r"[^A-Za-z\s]", "", text)).strip().upper()
+    """Uppercase, strip everything but letters/spaces, normalize STT variants."""
+    cleaned = re.sub(r"\s+", " ", re.sub(r"[^A-Za-z\s]", "", text)).strip().upper()
+    words = [_WORD_NORMALIZATIONS.get(w, w) for w in cleaned.split()]
+    return " ".join(words)
 
 
 def _resolve_data_path(config: Optional[Dict[str, Any]]) -> Path:

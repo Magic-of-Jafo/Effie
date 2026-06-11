@@ -75,8 +75,10 @@ def _build_system_message(cfg: Dict[str, Any]) -> str:
     phrases: List[str] = list(llm_ctrl.get("keyphrases") or [])
     phrases_text = ", ".join(phrases) if phrases else "next phase, advance phase, switch to phase {n}"
     instr = (
-        "\nWhen the user expresses intent to change show phases (e.g., keyphrases: "
-        f"{phrases_text}), call the function set_phase with action 'advance' or 'set' and 'phase' when setting."
+        "\nCall the function set_phase ONLY when the user explicitly and unmistakably asks to "
+        f"change show phases with wording like: {phrases_text}. Questions, requests, and "
+        "performance dialogue are NEVER phase changes. When in any doubt, do not call the "
+        "function. Every reply must contain spoken text; never respond with a function call alone."
     )
     return base + instr
 

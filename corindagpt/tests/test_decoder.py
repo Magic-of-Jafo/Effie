@@ -84,6 +84,13 @@ def test_decode_appends_secret_block():
     assert "Number or date: 1" in out
 
 
+def test_stt_spelling_variant_alright():
+    # STT writes "Alright" as one word; the table says "ALL RIGHT"
+    results = decoder.decode_to_results("Alright then, tell me what my favorite bird is?")
+    assert results[0]["code_phrase"] == "ALL RIGHT THEN TELL"
+    assert results[0]["Number or date"] == "79"
+
+
 def test_punctuation_and_case_insensitivity():
     results = decoder.decode_to_results("NOW... try to remember!")
     assert results[0]["code_phrase"] == "NOW TRY"

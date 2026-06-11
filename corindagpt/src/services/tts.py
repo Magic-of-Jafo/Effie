@@ -144,6 +144,14 @@ def _generate_silence_wav(duration_ms: int, *, sample_rate: int = 16000, channel
     return _pcm16le_to_wav_bytes(silence, sample_rate=sample_rate, channels=channels)
 
 
+def sanitize_for_speech(text: str) -> str:
+    """Strip markdown markup the LLM may emit; TTS should never voice it."""
+    import re as _re
+
+    out = _re.sub(r"[*_`#]+", "", text or "")
+    return _re.sub(r"\s{2,}", " ", out).strip()
+
+
 def _voice_settings_obj(ev_cfg: Dict[str, Any]):
     """Build a VoiceSettings object from config, or None to use voice defaults."""
     vs = ev_cfg.get("voice_settings")
@@ -543,7 +551,7 @@ async def stream_and_play(text: str, *, config: Optional[Dict[str, Any]] = None,
 
         def _stream_pcm() -> None:
             audio_stream = client.text_to_speech.stream(
-                text=text.strip(),
+                text=sanitize_for_speech(text),
                 voice_id=voice_id,
                 model_id=model_id,
                 output_format=output_format,
@@ -582,7 +590,7 @@ async def stream_and_play(text: str, *, config: Optional[Dict[str, Any]] = None,
     # Request streaming audio and play incrementally
     def _make_stream():
         return client.text_to_speech.stream(
-            text=text.strip(), voice_id=voice_id, model_id=model_id,
+            text=sanitize_for_speech(text), voice_id=voice_id, model_id=model_id,
             voice_settings=_voice_settings_obj(ev_cfg),
         )
 
@@ -661,7 +669,7 @@ async def stream_sentences_and_play(
                     return
                 try:
                     audio_stream = client.text_to_speech.stream(
-                        text=sentence,
+                        text=sanitize_for_speech(sentence),
                         voice_id=voice_id,
                         model_id=model_id,
                         output_format=output_format,
