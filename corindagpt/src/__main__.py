@@ -354,6 +354,10 @@ async def main() -> None:
     abs_handler = None
     ip_cfg = (cfg.get("input_patterns") or {})
     enabled_sources = [str(s).lower() for s in (ip_cfg.get("enabled_sources") or [])]
+    play_handler = None
+    # Separate play trigger (the pull string); when set, BRIEF on the record
+    # hotkey is ignored and only this key plays the queue front.
+    play_hotkey = str(ip_cfg.get("play_hotkey") or "").strip() or None
     if KeyboardInputHandler is not None and ("keyboard" in enabled_sources):
         async def on_abs_event(evt: InputEvent) -> None:
             try:
@@ -367,7 +371,7 @@ async def main() -> None:
                 interaction["mode"] = "decode"
             elif evt.pattern == InputPattern.COMPOUND:
                 interaction["mode"] = "bypass"
-            elif evt.pattern == InputPattern.BRIEF:
+            elif evt.pattern == InputPattern.BRIEF and play_hotkey is None:
                 asyncio.create_task(play_queue_next())
 
         abs_handler = KeyboardInputHandler(
@@ -385,6 +389,27 @@ async def main() -> None:
         except Exception as exc:
             logging.getLogger("input_patterns").warning("Abstract input handler failed to start: %s", exc)
             abs_handler = None
+
+    if abs_handler is not None and play_hotkey is not None:
+        async def on_play_event(evt: InputEvent) -> None:
+            if evt.pattern == InputPattern.BRIEF:
+                logging.getLogger("input_patterns").info("Play trigger: tap on '%s'", play_hotkey)
+                asyncio.create_task(play_queue_next())
+
+        play_handler = KeyboardInputHandler(
+            loop=loop,
+            on_event=on_play_event,  # type: ignore[arg-type]
+            hotkey_name=play_hotkey,
+            brief_max_ms=int(ip_cfg.get("brief_max_ms", 250)),
+            sustained_min_ms=int(ip_cfg.get("sustained_min_ms", 600)),
+            # No double-tap semantics on the string: window 0 emits BRIEF immediately
+            compound_double_press_window_ms=0,
+        )
+        try:
+            await play_handler.start()
+        except Exception as exc:
+            logging.getLogger("input_patterns").warning("Play trigger handler failed to start: %s", exc)
+            play_handler = None
 
     if abs_handler is not None:
         # Legacy handler keeps only the phase-transition hotkey
@@ -419,10 +444,13 @@ async def main() -> None:
     if listener is None:
         logger.error("Keyboard listener could not be started. Ensure 'pynput' is installed and permissions are granted.")
     else:
+        record_key = str(ip_cfg.get("hotkey") or "f12").upper()
         logger.info(
-            "Ready. Tap %s: play next queued clip | hold + speak: decoded pipeline | "
-            "double-tap + hold + speak: bypass decoder | long-press %s %d ms: advance phase.%s",
-            str(ip_cfg.get("hotkey") or "f12").upper(),
+            "Ready. Tap %s: play next queued clip | hold %s + speak: decoded pipeline | "
+            "double-tap + hold %s + speak: bypass decoder | long-press %s %d ms: advance phase.%s",
+            (play_hotkey.upper() if play_hotkey else record_key),
+            record_key,
+            record_key,
             trans_hotkey,
             trans_ms,
             " (BENCHMARK MODE)" if benchmark else "",
@@ -436,6 +464,11 @@ async def main() -> None:
         if abs_handler is not None:
             try:
                 await abs_handler.stop()
+            except Exception:
+                pass
+        if play_handler is not None:
+            try:
+                await play_handler.stop()
             except Exception:
                 pass
 

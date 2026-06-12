@@ -50,14 +50,21 @@ decoder:
 
 input_patterns:
   enabled_sources: ["keyboard"]
-  hotkey: "f12"
+  # Record trigger (mic button): hold = decoded pipeline, double-tap+hold = bypass
+  hotkey: "`"
+  # Play trigger (pull string): tap = play next queued clip.
+  # Leave empty/absent to fold playback back onto the record hotkey's tap.
+  play_hotkey: "space"
   brief_max_ms: 250
   sustained_min_ms: 600
   compound_double_press_window_ms: 350
 
 tts:
   provider: "elevenlabs"
-  streaming_enabled: true
+  # Off: account 403s the streaming PCM endpoint, and queued doll mode needs
+  # full audio up front anyway - go straight to non-streaming MP3, no wasted
+  # round trip. Revisit (plan upgrade) only if response_playback: "immediate".
+  streaming_enabled: false
   # Start TTS on the first complete sentence while the LLM is still generating
   sentence_streaming: true
   output_format: "pcm_16000"
