@@ -45,9 +45,11 @@ def test_phrase_spans_stt_punctuation():
     assert results[0]["Playing Card Value"] == "King of Hearts"
 
 
-def test_codes_in_separate_sentences_both_found():
+def test_accidental_second_code_is_dropped():
+    # One code per input: a second sentence opening with a code word must not
+    # put a competing row of secrets in front of the model
     results = decoder.decode_to_results("Can you feel it? Think hard now.")
-    assert [r["code_phrase"] for r in results] == ["CAN", "THINK"]
+    assert [r["code_phrase"] for r in results] == ["CAN"]
 
 
 def test_sorry_resets_previous_codes():
@@ -59,10 +61,23 @@ def test_sorry_resets_previous_codes():
 
 
 def test_time_combination_across_two_sentences():
-    # ARE = hour 4:00, GIVE = minute :05
-    results = decoder.decode_to_results("Are you ready to tell us? Give us the full answer.")
+    # ARE = hour 4:00, GIVE = minute :05 -> one entry holding only the time;
+    # neither row's other categories may ride along. The question must
+    # actually mention time/clock/watch for the combination to engage.
+    results = decoder.decode_to_results("Are you seeing the time on his watch? Give us the answer.")
+    assert len(results) == 1
     assert results[0].get("Time") == "4:05"
-    assert "Hour" not in results[0]
+    categories = set(results[0]) - {"CONTEXT", "code_phrase"}
+    assert categories == {"Time"}
+
+
+def test_two_codes_without_time_ask_keep_first_only():
+    # Hour/Minute are columns on nearly every row; without a time word in the
+    # question, hour+minute pairs are accidental and the second is dropped
+    results = decoder.decode_to_results("Are you ready to tell us? Give us the full answer.")
+    assert len(results) == 1
+    assert results[0]["code_phrase"] == "ARE"
+    assert "Time" not in results[0]
 
 
 def test_no_match_returns_empty():

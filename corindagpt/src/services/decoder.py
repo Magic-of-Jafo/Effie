@@ -177,20 +177,34 @@ def _find_codes(sentences: List[str], table: _CodeTable) -> List[Tuple[str, str]
     return found
 
 
-def _combine_time(results: List[Dict[str, str]]) -> None:
-    """Two coded sentences carrying Hour then Minute resolve to one time."""
+_TIME_ASK_RE = re.compile(r"\b(time|clock|watch|o'?clock)\b", re.IGNORECASE)
+
+
+def _apply_single_code_rule(results: List[Dict[str, str]], transcript: str) -> List[Dict[str, str]]:
+    """One code per input - never offer the model competing rows.
+
+    The sole legitimate two-code pattern is the time ask: the first code
+    carries an Hour and the second a Minute, which collapse into a single
+    entry holding only the combined Time. Hour/Minute are columns on nearly
+    every row, so the data alone can't tell a time ask from an accidental
+    second code - the question has to actually mention time/clock/watch.
+    All other extra detections are accidental (a later sentence happening
+    to open with a code word) and are dropped.
+    """
     if len(results) < 2:
-        return
+        return results
     first, second = results[0], results[1]
     hour = first.get("Hour")
     minute = second.get("Minute")
-    if not hour or not minute:
-        return
-    time_str = f"{hour.split(':')[0]}:{minute.lstrip(':')}"
-    for item in (first, second):
-        item.pop("Hour", None)
-        item.pop("Minute", None)
-        item["Time"] = time_str
+    if hour and minute and _TIME_ASK_RE.search(transcript or ""):
+        return [
+            {
+                "CONTEXT": f"{first.get('CONTEXT', '')} {second.get('CONTEXT', '')}".strip(),
+                "code_phrase": f"{first.get('code_phrase', '')} + {second.get('code_phrase', '')}",
+                "Time": f"{hour.split(':')[0]}:{minute.lstrip(':')}",
+            }
+        ]
+    return [first]
 
 
 def decode_to_results(text: str, *, config: Optional[Dict[str, Any]] = None) -> List[Dict[str, str]]:
@@ -217,7 +231,7 @@ def decode_to_results(text: str, *, config: Optional[Dict[str, Any]] = None) -> 
         entry.update(data)
         results.append(entry)
 
-    _combine_time(results)
+    results = _apply_single_code_rule(results, working)
 
     if results:
         _last_results = results
