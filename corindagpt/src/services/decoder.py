@@ -179,6 +179,41 @@ def _find_codes(sentences: List[str], table: _CodeTable) -> List[Tuple[str, str]
 
 _TIME_ASK_RE = re.compile(r"\b(time|clock|watch|o'?clock)\b", re.IGNORECASE)
 
+_NUMBER_WORDS = {
+    1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six",
+    7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve",
+    13: "thirteen", 14: "fourteen", 15: "fifteen", 16: "sixteen", 17: "seventeen",
+    18: "eighteen", 19: "nineteen", 20: "twenty", 21: "twenty-one",
+    22: "twenty-two", 23: "twenty-three", 24: "twenty-four", 25: "twenty-five",
+    26: "twenty-six", 27: "twenty-seven", 28: "twenty-eight", 29: "twenty-nine",
+}
+
+
+def _time_in_words(hour: int, minute: int) -> str:
+    """Render a clock time the way Effie should speak it.
+
+    "four o'clock", "five minutes past four", "quarter past four",
+    "half past four", "twenty minutes to five", "quarter to five".
+    """
+    minute %= 60
+    hour = ((hour - 1) % 12) + 1
+    if minute == 0:
+        return f"{_NUMBER_WORDS[hour]} o'clock"
+    if minute == 15:
+        return f"quarter past {_NUMBER_WORDS[hour]}"
+    if minute == 30:
+        return f"half past {_NUMBER_WORDS[hour]}"
+    if minute == 45:
+        next_hour = (hour % 12) + 1
+        return f"quarter to {_NUMBER_WORDS[next_hour]}"
+    if minute < 30:
+        unit = "minute" if minute == 1 else "minutes"
+        return f"{_NUMBER_WORDS[minute]} {unit} past {_NUMBER_WORDS[hour]}"
+    next_hour = (hour % 12) + 1
+    remaining = 60 - minute
+    unit = "minute" if remaining == 1 else "minutes"
+    return f"{_NUMBER_WORDS[remaining]} {unit} to {_NUMBER_WORDS[next_hour]}"
+
 
 def _apply_single_code_rule(results: List[Dict[str, str]], transcript: str) -> List[Dict[str, str]]:
     """One code per input - never offer the model competing rows.
@@ -197,11 +232,15 @@ def _apply_single_code_rule(results: List[Dict[str, str]], transcript: str) -> L
     hour = first.get("Hour")
     minute = second.get("Minute")
     if hour and minute and _TIME_ASK_RE.search(transcript or ""):
+        try:
+            spoken = _time_in_words(int(hour.split(":")[0]), int(minute.lstrip(":")))
+        except Exception:
+            spoken = f"{hour.split(':')[0]}:{minute.lstrip(':')}"
         return [
             {
                 "CONTEXT": f"{first.get('CONTEXT', '')} {second.get('CONTEXT', '')}".strip(),
                 "code_phrase": f"{first.get('code_phrase', '')} + {second.get('code_phrase', '')}",
-                "Time": f"{hour.split(':')[0]}:{minute.lstrip(':')}",
+                "Time": spoken,
             }
         ]
     return [first]

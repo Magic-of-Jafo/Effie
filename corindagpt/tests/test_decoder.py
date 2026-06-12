@@ -66,9 +66,19 @@ def test_time_combination_across_two_sentences():
     # actually mention time/clock/watch for the combination to engage.
     results = decoder.decode_to_results("Are you seeing the time on his watch? Give us the answer.")
     assert len(results) == 1
-    assert results[0].get("Time") == "4:05"
+    assert results[0].get("Time") == "five minutes past four"
     categories = set(results[0]) - {"CONTEXT", "code_phrase"}
     assert categories == {"Time"}
+
+
+def test_time_in_words_edges():
+    assert decoder._time_in_words(4, 0) == "four o'clock"
+    assert decoder._time_in_words(4, 1) == "one minute past four"
+    assert decoder._time_in_words(4, 15) == "quarter past four"
+    assert decoder._time_in_words(4, 30) == "half past four"
+    assert decoder._time_in_words(4, 45) == "quarter to five"
+    assert decoder._time_in_words(4, 40) == "twenty minutes to five"
+    assert decoder._time_in_words(12, 59) == "one minute to one"
 
 
 def test_two_codes_without_time_ask_keep_first_only():
