@@ -285,12 +285,9 @@ def _format_for_prompt(transcript: str, results: List[Dict[str, str]]) -> str:
             f"{k}: {v}" for k, v in item.items() if k not in ("CONTEXT", "code_phrase")
         )
         lines.append(f'- coded sentence: "{context}" -> {meanings}')
-    lines.append(
-        "Use the category of decoded data that fits what is being asked; ignore the others. "
-        "State the decoded answer plainly, exactly, and word-for-word (e.g. say 'King of Hearts', "
-        "never 'a heart of kings' or any riddle). The audience must hear the answer clearly - "
-        "the revelation itself is the magic. Do not embellish around it."
-    )
+    # Delivery style is the persona's job (prompts/persona.txt); the decoder
+    # only supplies the data. The old instruction here was a crutch for
+    # 4o-mini forgetting the persona and fought persona edits.
     return "\n".join(lines)
 
 
