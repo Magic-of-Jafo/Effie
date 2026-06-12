@@ -46,8 +46,23 @@ def _default_template() -> PromptTemplate:
     return PromptTemplate.from_template(text)
 
 
-def load_prompt_for_phase(phase: int) -> PromptTemplate:
-    """Load a PromptTemplate for the given phase; fallback to a default template if missing."""
+def _persona_only_template() -> PromptTemplate:
+    """Simple mode (single-phase shows): persona with no per-phase flavor."""
+    text = "The magician said: {transcript}\n\nReply as Effie."
+    persona = _load_persona_text()
+    if persona:
+        text = f"{persona}\n\n{text}"
+    return PromptTemplate.from_template(text)
+
+
+def load_prompt_for_phase(phase: int, *, use_phase_files: bool = True) -> PromptTemplate:
+    """Load a PromptTemplate for the given phase; fallback to a default template if missing.
+
+    With use_phase_files=False (settings.yaml phases: 1), the per-phase prompt
+    files are skipped entirely and only the persona shapes the reply.
+    """
+    if not use_phase_files:
+        return _persona_only_template()
     path = _prompt_path_for_phase(phase)
     try:
         content = path.read_text(encoding="utf-8")

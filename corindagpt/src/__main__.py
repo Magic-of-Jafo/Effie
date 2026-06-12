@@ -190,9 +190,12 @@ async def main() -> None:
                     # SUSTAINED runs the decoder; COMPOUND bypasses it (FR4/FR6)
                     if mode == "decode":
                         transcript = decoder_service.decode(transcript, config=cfg)
-                    # Load a phase-specific prompt and render with context
+                    # Load a phase-specific prompt and render with context.
+                    # Single-phase shows (settings.yaml phases: 1) run on the
+                    # persona alone - no per-phase flavor.
                     phase = phase_manager.current_phase
-                    template = load_prompt_for_phase(phase)
+                    multi_phase = len(cfg.get("performance_plan") or []) > 1
+                    template = load_prompt_for_phase(phase, use_phase_files=multi_phase)
                     rendered = render_prompt(template, {"transcript": transcript})
 
                     # Call LLM with rendered prompt
@@ -209,7 +212,8 @@ async def main() -> None:
                     # (gpt-5.4 rejects the combination), which makes the model
                     # reason on every answer. Only pay that cost when the
                     # transcript could actually be a phase command.
-                    wants_tools = use_tools and ("phase" in (raw_transcript or "").lower())
+                    # (single-phase shows have nothing to advance to)
+                    wants_tools = use_tools and multi_phase and ("phase" in (raw_transcript or "").lower())
 
                     def handle_tool_calls(tool_calls: list) -> None:
                         try:

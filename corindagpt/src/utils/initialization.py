@@ -19,6 +19,39 @@ def _default_config_path() -> Path:
     return PROJECT_ROOT / "config" / "config.yaml"
 
 
+def _default_settings_path() -> Path:
+    """Performer-tunable show settings; overrides config.yaml at load time."""
+    return PROJECT_ROOT / "config" / "settings.yaml"
+
+
+def _apply_show_settings(data: Dict[str, Any], settings_path: Path) -> None:
+    """Overlay show settings (settings.yaml) onto the loaded config, in place.
+
+    Settings are performer-facing knobs (the future dashboard writes that file
+    only); invalid values are clamped with a warning rather than raised, so a
+    bad edit can't keep the show from starting.
+    """
+    if not settings_path.exists():
+        return
+    try:
+        with settings_path.open("r", encoding="utf-8") as fh:
+            settings: Dict[str, Any] = yaml.safe_load(fh) or {}
+    except Exception as exc:
+        logger.warning("Show settings unreadable (%s); using config.yaml as-is.", exc)
+        return
+    data["settings"] = settings
+
+    if "phases" in settings:
+        try:
+            phases = int(settings.get("phases"))
+        except Exception:
+            phases = 1
+        if not 1 <= phases <= 5:
+            logger.warning("settings.yaml: phases=%r out of range; clamping to 1-5.", settings.get("phases"))
+            phases = min(5, max(1, phases))
+        data["performance_plan"] = list(range(1, phases + 1))
+
+
 # Load environment variables from a local .env if present (no override of existing env)
 load_dotenv(dotenv_path=PROJECT_ROOT / ".env", override=False)
 
@@ -50,6 +83,11 @@ def load_config(config_path: Optional[Union[str, Path]] = None) -> Dict[str, Any
 
     with path.open("r", encoding="utf-8") as file:
         data: Dict[str, Any] = yaml.safe_load(file) or {}
+
+    # Overlay performer-facing show settings (settings.yaml lives beside the
+    # config; explicit config_path is used by tests, which keep their own data)
+    if config_path is None:
+        _apply_show_settings(data, _default_settings_path())
 
     # Apply environment variable overrides
     openai_from_env = os.getenv("OPENAI_API_KEY")
