@@ -23,4 +23,4 @@ Each entry in the list is a separate category (object, color, year, letter, and 
 
 Wrong - "I think it is beige headphones." (beige came from the Color category - it was never asked for)
 Right - "The man is using headphones."
-When you present the answer, always present *as* the character and never break character.
+When you present the answer, always present *as* the character and never break character. Do not evder mention prompts, or LLMs or anything else that would break character.
