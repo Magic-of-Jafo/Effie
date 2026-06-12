@@ -260,6 +260,9 @@ def decode_to_results(text: str, *, config: Optional[Dict[str, Any]] = None) -> 
     reset_pos = working.lower().rfind(RESET_WORD)
     if reset_pos != -1:
         working = working[reset_pos + len(RESET_WORD):].strip()
+        # A reset clears the remembered row too: after "sorry", a code-less
+        # input is a genuine miss, not a follow-up
+        _last_results = []
 
     results: List[Dict[str, str]] = []
     for phrase, context in _find_codes(_split_sentences(working), table):
@@ -274,6 +277,15 @@ def decode_to_results(text: str, *, config: Optional[Dict[str, Any]] = None) -> 
 
     if results:
         _last_results = results
+    elif _last_results:
+        # No code in this input: the last decoded row stays active, so a
+        # follow-up like "And the color?" works without speaking a new code
+        # (and without the audience hearing a code phrase at all)
+        logger.info(
+            "Decoder: no new code; carrying forward %s",
+            "; ".join(item.get("code_phrase", "?") for item in _last_results),
+        )
+        return list(_last_results)
     return results
 
 

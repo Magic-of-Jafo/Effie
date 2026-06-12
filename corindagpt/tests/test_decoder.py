@@ -94,6 +94,23 @@ def test_no_match_returns_empty():
     assert decoder.decode_to_results("Nothing coded here at all.") == []
 
 
+def test_row_carries_forward_without_new_code():
+    # Misdirection follow-up: once a row is active, a code-less question
+    # reuses it ("Now think of the item..." then "And the color?")
+    decoder.decode_to_results("Now think of the item this woman is holding.")
+    results = decoder.decode_to_results("And the color?")
+    assert len(results) == 1
+    assert results[0]["code_phrase"] == "NOW THINK"
+    assert results[0]["Color"] == "sky blue"
+
+
+def test_sorry_clears_remembered_row():
+    # After a reset, a code-less input is a genuine miss, not a follow-up
+    decoder.decode_to_results("Now think of the item this woman is holding.")
+    results = decoder.decode_to_results("Sorry. Nothing coded here at all.")
+    assert results == []
+
+
 def test_decode_without_codes_instructs_graceful_miss():
     out = decoder.decode("A perfectly innocent sentence.")
     assert out.startswith("A perfectly innocent sentence.")
