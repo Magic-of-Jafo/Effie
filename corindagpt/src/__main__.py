@@ -205,6 +205,12 @@ async def main() -> None:
                         (cfg.get("tts") or {}).get("sentence_streaming", True)
                     )
 
+                    # Attaching tools forces reasoning_effort off the request
+                    # (gpt-5.4 rejects the combination), which makes the model
+                    # reason on every answer. Only pay that cost when the
+                    # transcript could actually be a phase command.
+                    wants_tools = use_tools and ("phase" in (raw_transcript or "").lower())
+
                     def handle_tool_calls(tool_calls: list) -> None:
                         try:
                             for call in tool_calls:
@@ -243,7 +249,7 @@ async def main() -> None:
                         # and parked at the queue front; the next BRIEF input
                         # (string pull) speaks it. Nothing plays now.
                         try:
-                            if use_tools:
+                            if wants_tools:
                                 content, tool_calls = await gpt_service.chat_with_tools(rendered, history=memory.messages())
                             else:
                                 content = await gpt_service.generate_response(rendered, history=memory.messages())
@@ -288,7 +294,7 @@ async def main() -> None:
                         return
 
                     try:
-                        if use_tools:
+                        if wants_tools:
                             content, tool_calls = await gpt_service.chat_with_tools(rendered, history=memory.messages())
                         else:
                             content = await gpt_service.generate_response(rendered, history=memory.messages())
@@ -456,10 +462,40 @@ async def main() -> None:
             " (BENCHMARK MODE)" if benchmark else "",
         )
 
+    # Keep API TLS connections open between interactions: questions are minutes
+    # apart on stage, far past any keepalive expiry, so without a heartbeat
+    # every leg of every question pays a fresh handshake.
+    keepalive_task = None
+    ka_interval = float((cfg.get("network") or {}).get("keepalive_interval_s", 60))
+    if ka_interval > 0:
+        from .services import gpt as _gpt_ka, tts as _tts_ka
+
+        async def _keepalive_loop() -> None:
+            oa_key = cfg.get("openai_api_key")
+            ev_key = cfg.get("elevenlabs_api_key")
+            while True:
+                await asyncio.sleep(ka_interval)
+                try:
+                    if oa_key:
+                        await _gpt_ka.get_shared_client().get(
+                            "/models/gpt-4o-mini", headers={"Authorization": f"Bearer {oa_key}"}
+                        )
+                    if ev_key:
+                        await _tts_ka.get_shared_async_client().get(
+                            "/models", headers={"xi-api-key": ev_key}
+                        )
+                        await asyncio.to_thread(_tts_ka.get_elevenlabs_client(ev_key).models.list)
+                except Exception as exc:
+                    logger.debug("Keepalive ping failed (continuing): %s", exc)
+
+        keepalive_task = asyncio.create_task(_keepalive_loop())
+
     try:
         # Keep the event loop alive indefinitely
         await asyncio.Event().wait()
     finally:
+        if keepalive_task is not None:
+            keepalive_task.cancel()
         input_handler.stop_keyboard_listener()
         if abs_handler is not None:
             try:

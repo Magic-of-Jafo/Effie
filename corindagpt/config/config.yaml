@@ -15,8 +15,9 @@ transcription:
   elevenlabs:
     endpoint: "https://api.elevenlabs.io/v1/speech-to-text"
     model: "scribe_v1"
-    diarize: true
-    tag_audio_events: true
+    # Single close-mic speaker; diarization and event tags only add latency
+    diarize: false
+    tag_audio_events: false
     language_code: null  # use ISO like 'eng'; auto if null; 'en' will map to 'eng'
 
 transitions:
@@ -26,6 +27,11 @@ transitions:
   llm_phase_control:
     enabled: true
     keyphrases: ["next phase", "advance phase", "switch to phase {n}"]
+
+network:
+  # Ping OpenAI/ElevenLabs this often (seconds) to keep TLS connections hot
+  # between stage interactions; 0 disables the heartbeat
+  keepalive_interval_s: 60
 
 memory:
   # Conversation turns Effie remembers (user + her own lines, incl. played phrases)

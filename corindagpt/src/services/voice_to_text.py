@@ -339,7 +339,11 @@ class TranscriptionService:
         self._eleven_client: Optional[ElevenLabs] = None
         if ElevenLabs is not None and self._config.get("elevenlabs_api_key"):
             try:
-                self._eleven_client = ElevenLabs(api_key=self._config.get("elevenlabs_api_key"))
+                # Shared process-wide client: warmed at startup and kept hot,
+                # so transcription doesn't pay a TLS handshake per question
+                from .tts import get_elevenlabs_client
+
+                self._eleven_client = get_elevenlabs_client(self._config.get("elevenlabs_api_key"))
             except Exception:
                 self._eleven_client = None
 

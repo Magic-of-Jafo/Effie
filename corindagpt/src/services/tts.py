@@ -28,9 +28,31 @@ def get_elevenlabs_client(api_key: str):
     if _el_client is None or _el_client_key != api_key:
         from elevenlabs.client import ElevenLabs  # type: ignore
 
-        _el_client = ElevenLabs(api_key=api_key)
+        # Long keepalive: default 5s expiry drops the connection between
+        # stage interactions, forcing a TLS handshake per question
+        _el_client = ElevenLabs(
+            api_key=api_key,
+            httpx_client=httpx.Client(
+                timeout=60.0, limits=httpx.Limits(keepalive_expiry=300.0)
+            ),
+        )
         _el_client_key = api_key
     return _el_client
+
+
+_shared_async_client: Optional[httpx.AsyncClient] = None
+
+
+def get_shared_async_client() -> httpx.AsyncClient:
+    """Process-wide AsyncClient for raw ElevenLabs HTTP calls (synthesize)."""
+    global _shared_async_client
+    if _shared_async_client is None or _shared_async_client.is_closed:
+        _shared_async_client = httpx.AsyncClient(
+            base_url="https://api.elevenlabs.io/v1",
+            timeout=httpx.Timeout(60.0),
+            limits=httpx.Limits(keepalive_expiry=300.0),
+        )
+    return _shared_async_client
 
 
 async def warmup(config: Optional[Dict[str, Any]] = None) -> None:
@@ -42,6 +64,8 @@ async def warmup(config: Optional[Dict[str, Any]] = None) -> None:
     try:
         client = get_elevenlabs_client(api_key)
         await asyncio.to_thread(client.models.list)
+        # Also warm the raw httpx client that synthesize() actually uses
+        await get_shared_async_client().get("/models", headers={"xi-api-key": api_key})
         logger.info("ElevenLabs connection warmed up")
     except Exception as exc:
         logger.warning("ElevenLabs warmup failed (continuing): %s", exc)
@@ -203,11 +227,9 @@ async def synthesize(
     model_id: str = ev_cfg.get("model_id") or "eleven_multilingual_v2"
     streaming_enabled: bool = bool(tts_cfg.get("streaming_enabled", True))
 
-    own_client = http_client is None
-    client = http_client or httpx.AsyncClient(
-        base_url="https://api.elevenlabs.io/v1",
-        timeout=httpx.Timeout(60.0),
-    )
+    # Shared client keeps the TLS connection warm across calls; never closed here
+    own_client = False
+    client = http_client or get_shared_async_client()
 
     # Decide Accept based on desired non-streaming output
     nonstream_output: str = str(tts_cfg.get("output_format") or "mp3_44100_128")

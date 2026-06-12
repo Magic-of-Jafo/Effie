@@ -20,7 +20,13 @@ def get_shared_client() -> httpx.AsyncClient:
     """Process-wide AsyncClient so TLS connections are reused across requests."""
     global _shared_client
     if _shared_client is None or _shared_client.is_closed:
-        _shared_client = httpx.AsyncClient(base_url="https://api.openai.com/v1", timeout=30.0)
+        _shared_client = httpx.AsyncClient(
+            base_url="https://api.openai.com/v1",
+            timeout=30.0,
+            # Default keepalive expiry (5s) drops the connection between stage
+            # interactions, forcing a TLS handshake per question
+            limits=httpx.Limits(keepalive_expiry=300.0),
+        )
     return _shared_client
 
 
