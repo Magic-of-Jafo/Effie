@@ -1,4 +1,4 @@
-﻿# Effie show settings
+# Effie show settings
 #
 # Performer-tunable values. Edited by the localhost dashboard while
 # the show runs; also safe to edit by hand. Technical configuration
@@ -43,5 +43,6 @@ config:
         style: 0.0
         use_speaker_boost: false
 keepalive_interval_s: 60
+listening_mode: push_hold
 phases: 1
 response_playback: queued

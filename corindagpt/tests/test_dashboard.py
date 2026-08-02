@@ -76,6 +76,19 @@ def test_current_value_precedence(tmp_path: Path):
     assert dashboard.current_value(spec, {}, {}) == 0.90  # schema default
 
 
+def test_listening_mode_in_schema_and_page(tmp_path: Path):
+    spec = _spec("listening_mode")
+    assert spec["live"] is True
+    assert dashboard.validate_setting(spec, "streaming") == "streaming"
+    assert dashboard.validate_setting(spec, "nonsense") == "push_hold"
+    path = tmp_path / "settings.yaml"
+    path.write_text("listening_mode: streaming\n", encoding="utf-8")
+    page = dashboard._render_page(path, saved=False, restart=False)
+    assert '<option value="streaming" selected>' in page
+    assert 'data-tab="Live"' in page
+    assert 'live.json' in page
+
+
 def test_render_page_has_tabs_and_badges(tmp_path: Path):
     path = tmp_path / "settings.yaml"
     path.write_text("phases: 3\nresponse_playback: immediate\n", encoding="utf-8")

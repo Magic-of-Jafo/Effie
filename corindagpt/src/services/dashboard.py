@@ -18,6 +18,7 @@ the page badges them "restart required".
 from __future__ import annotations
 
 import html
+import json
 import logging
 import os
 import tempfile
@@ -32,6 +33,7 @@ import yaml
 logger = logging.getLogger(__name__)
 
 TABS = ["Show", "Voice", "Controls", "Listening", "System"]
+LIVE_TAB = "Live"  # rendered separately: rolling transcript view, no form fields
 
 # Each entry:
 #   key       - form name and settings.yaml location. top=True keys are
@@ -179,6 +181,13 @@ SETTINGS_SCHEMA: List[Dict[str, Any]] = [
         "display": "transitions.phase_transition.long_press_ms",
     },
     # -------------------------------------------------------- Listening
+    {
+        "key": "listening_mode", "top": True, "tab": "Listening",
+        "label": "Listening mode",
+        "help": "push_hold = record on hold, transcribe on release (baseline). streaming = continuous rolling transcript; release grabs it instantly. Applies live; falls back to push_hold if the stream is down.",
+        "kind": "choice", "choices": ["push_hold", "streaming"], "default": "push_hold", "live": True,
+        "display": "listening_mode",
+    },
     {
         "key": "transcription.elevenlabs.model", "top": False, "tab": "Listening",
         "label": "Transcription model",
@@ -420,6 +429,16 @@ def _render_page(settings_path: Path, saved: bool, restart: bool) -> str:
         active = " active" if i == 0 else ""
         nav.append(f'<button type="button" class="tab{active}" data-tab="{tab}">{tab}</button>')
         sections.append(f'<section id="tab-{tab}" class="panel{active}">{rows}</section>')
+    # Live transcript view: polls /live.json while visible
+    nav.append(f'<button type="button" class="tab" data-tab="{LIVE_TAB}">{LIVE_TAB}</button>')
+    sections.append(
+        f'<section id="tab-{LIVE_TAB}" class="panel">'
+        '<p class="help">Rolling transcript from the streaming ears. '
+        'Switch Listening mode to <b>streaming</b> (Listening tab), save, then speak.</p>'
+        '<p id="live-status" class="help">status: -</p>'
+        '<div id="live-text" class="livebox"></div>'
+        "</section>"
+    )
     notice = ""
     if saved:
         extra = " Restart Effie for the badged changes to take effect." if restart else ""
@@ -446,6 +465,9 @@ def _render_page(settings_path: Path, saved: bool, restart: bool) -> str:
             border-radius: 3px; padding: 0.05rem 0.35rem; margin-left: 0.5rem;
             vertical-align: middle; }}
   .saved {{ color: #9ac79a; }}
+  .livebox {{ background: #120e11; border: 1px solid #3a2f37; border-radius: 6px;
+              min-height: 14rem; padding: 1rem; font-size: 1.15rem; line-height: 1.7;
+              white-space: pre-wrap; word-wrap: break-word; }}
   .actions {{ margin: 2rem 0; }}
   button[type=submit] {{ font-size: 1rem; padding: 0.5rem 1.8rem; background: #5a4a55;
             color: #e8e0d8; border: none; border-radius: 4px; cursor: pointer; }}
@@ -465,11 +487,31 @@ document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', (
   btn.classList.add('active');
   document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
 }}));
+let liveTimer = null;
+async function pollLive() {{
+  try {{
+    const r = await fetch('/live.json');
+    const s = await r.json();
+    document.getElementById('live-status').textContent =
+      'mode: ' + s.mode + '   status: ' + s.status + (s.last_error ? '   last error: ' + s.last_error : '');
+    document.getElementById('live-text').textContent = s.entries.map(e => e.text).join('');
+  }} catch (e) {{
+    document.getElementById('live-status').textContent = 'dashboard unreachable';
+  }}
+}}
+setInterval(() => {{
+  const panel = document.getElementById('tab-{LIVE_TAB}');
+  if (panel.classList.contains('active')) pollLive();
+}}, 400);
 </script>
 </body></html>"""
 
 
-def _make_handler(settings_path: Path, apply_cb: Optional[Callable[[Dict[str, Any]], None]]):
+def _make_handler(
+    settings_path: Path,
+    apply_cb: Optional[Callable[[Dict[str, Any]], None]],
+    live_state_cb: Optional[Callable[[], Dict[str, Any]]] = None,
+):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, fmt: str, *args: Any) -> None:  # route to logging, not stderr
             logger.debug("Dashboard: " + fmt, *args)
@@ -483,6 +525,20 @@ def _make_handler(settings_path: Path, apply_cb: Optional[Callable[[Dict[str, An
             self.wfile.write(data)
 
         def do_GET(self) -> None:
+            if self.path.startswith("/live.json"):
+                state: Dict[str, Any] = {"mode": "?", "status": "unavailable", "last_error": "", "entries": []}
+                if live_state_cb is not None:
+                    try:
+                        state = live_state_cb()
+                    except Exception as exc:
+                        state["last_error"] = str(exc)
+                data = json.dumps(state).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
             query = self.path.split("?", 1)[1] if "?" in self.path else ""
             self._send_html(
                 _render_page(settings_path, saved="saved=1" in query, restart="restart=1" in query)
@@ -517,7 +573,7 @@ def _make_handler(settings_path: Path, apply_cb: Optional[Callable[[Dict[str, An
                 return
             if apply_cb is not None:
                 try:
-                    apply_cb({k: v for k, v in updates.items() if k in ("phases", "response_playback", "keepalive_interval_s")})
+                    apply_cb({k: v for k, v in updates.items() if k in ("phases", "response_playback", "keepalive_interval_s", "listening_mode")})
                 except Exception as exc:
                     logger.error("Dashboard: live-apply failed (file saved): %s", exc)
             logger.info("Dashboard: settings saved (%d values, restart_needed=%s)", len(updates), restart_needed)
@@ -532,6 +588,7 @@ def start_dashboard(
     config: Dict[str, Any],
     settings_path: Path,
     apply_cb: Optional[Callable[[Dict[str, Any]], None]] = None,
+    live_state_cb: Optional[Callable[[], Dict[str, Any]]] = None,
 ) -> Optional[ThreadingHTTPServer]:
     """Start the dashboard thread if enabled; returns the server or None.
 
@@ -543,7 +600,9 @@ def start_dashboard(
         return None
     port = int(dash_cfg.get("port", 7360))
     try:
-        server = ThreadingHTTPServer(("127.0.0.1", port), _make_handler(settings_path, apply_cb))
+        server = ThreadingHTTPServer(
+            ("127.0.0.1", port), _make_handler(settings_path, apply_cb, live_state_cb)
+        )
     except OSError as exc:
         logger.warning("Dashboard: could not bind 127.0.0.1:%s (%s); dashboard off", port, exc)
         return None

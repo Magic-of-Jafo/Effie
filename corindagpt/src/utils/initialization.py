@@ -72,6 +72,13 @@ def _apply_show_settings(data: Dict[str, Any], settings_path: Path) -> None:
             mode = "queued"
         data.setdefault("audio_queue", {})["response_playback"] = mode
 
+    if "listening_mode" in settings:
+        mode = str(settings.get("listening_mode")).strip().lower()
+        if mode not in ("push_hold", "streaming"):
+            logger.warning("settings.yaml: listening_mode=%r invalid; using 'push_hold'.", settings.get("listening_mode"))
+            mode = "push_hold"
+        data["listening_mode"] = mode
+
     if "keepalive_interval_s" in settings:
         try:
             interval = float(settings.get("keepalive_interval_s"))

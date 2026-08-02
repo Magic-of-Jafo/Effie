@@ -104,7 +104,17 @@ async def main() -> None:
         "performance_plan": list(cfg.get("performance_plan") or [1]),
         "response_mode": response_playback_mode(cfg),
         "keepalive_interval_s": float((cfg.get("network") or {}).get("keepalive_interval_s", 60)),
+        "listening_mode": str(cfg.get("listening_mode") or "push_hold"),
     }
+
+    # Streaming ears (voice-control story 1): rolling transcript over a
+    # continuous WebSocket. Runs only while listening_mode == "streaming";
+    # push-hold recording stays fully intact as baseline and fallback.
+    from .services.streaming_transcription import StreamingTranscriptionService
+
+    streaming_svc = StreamingTranscriptionService(cfg)
+    if live["listening_mode"] == "streaming":
+        await streaming_svc.start()
 
     # Interaction mode for the press in progress, set by pattern events:
     # None (brief/dead-zone), "decode" (sustained), or "bypass" (compound)
@@ -114,6 +124,15 @@ async def main() -> None:
         # Transition IDLE -> LISTENING; ignore press if not allowed
         if fsm.transition(State.LISTENING):
             interaction["mode"] = None
+            interaction["stream_press"] = None
+            # Streaming mode: the transcript already exists - just mark the
+            # window start. Falls through to the recorder when the stream
+            # is down so a dead connection can never lose a question.
+            if live["listening_mode"] == "streaming" and streaming_svc.is_active():
+                from time import monotonic as _mono
+                interaction["stream_press"] = _mono()
+                logger.debug("Streaming window opened")
+                return
             # A discard from a just-released tap may still hold the recorder
             # lock; wait for it (milliseconds) or start_recording is a no-op
             pending = interaction.get("discard")
@@ -167,15 +186,17 @@ async def main() -> None:
         from time import monotonic as _mono
         t_release_mono = _mono()
 
-        data = await recorder.stop_recording()
-        if data:
-            logger.info("Audio captured")
+        stream_press = interaction.get("stream_press")
+        use_stream = stream_press is not None and streaming_svc.is_active()
+        data = b"" if use_stream else await recorder.stop_recording()
+        if use_stream or data:
+            logger.info("Audio captured" + (" (streaming window)" if use_stream else ""))
             # LISTENING -> PROCESSING
             if not fsm.transition(State.PROCESSING):
                 logger.warning("Unexpected state; cannot enter PROCESSING from %s", fsm.state)
                 return
             try:
-                if benchmark:
+                if benchmark and not use_stream:
                     results = await transcriber.benchmark_three(data)
                     for r in results:
                         label = r.get("label")
@@ -187,7 +208,10 @@ async def main() -> None:
                         else:
                             logger.info("%s -> %d ms TEXT: %s", label, ms, text)
                 else:
-                    transcript = await transcriber.transcribe(data)
+                    if use_stream:
+                        transcript = await streaming_svc.get_window(stream_press, t_release_mono)
+                    else:
+                        transcript = await transcriber.transcribe(data)
                     logger.info(
                         "Transcript (release->transcript %d ms): %s",
                         int((_mono() - t_release_mono) * 1000),
@@ -519,17 +543,40 @@ async def main() -> None:
                 live["response_mode"] = str(vals["response_playback"])
             if "keepalive_interval_s" in vals:
                 live["keepalive_interval_s"] = float(vals["keepalive_interval_s"])
+            if "listening_mode" in vals:
+                mode = str(vals["listening_mode"])
+                if mode != live["listening_mode"]:
+                    live["listening_mode"] = mode
+                    logger.info("Listening mode switched to %s", mode)
+                    if mode == "streaming":
+                        asyncio.create_task(streaming_svc.start())
+                    else:
+                        asyncio.create_task(streaming_svc.stop())
 
         loop.call_soon_threadsafe(_apply)
 
+    def _live_state() -> dict:
+        # Read by the dashboard's Live view (server thread; snapshot reads only)
+        return {
+            "mode": live["listening_mode"],
+            "status": streaming_svc.status,
+            "last_error": streaming_svc.last_error,
+            "entries": streaming_svc.recent(45.0),
+        }
+
     dashboard_server = start_dashboard(
-        cfg, PROJECT_ROOT / "config" / "settings.yaml", _apply_dashboard_settings
+        cfg, PROJECT_ROOT / "config" / "settings.yaml", _apply_dashboard_settings,
+        live_state_cb=_live_state,
     )
 
     try:
         # Keep the event loop alive indefinitely
         await asyncio.Event().wait()
     finally:
+        try:
+            await streaming_svc.stop()
+        except Exception:
+            pass
         if dashboard_server is not None:
             dashboard_server.shutdown()
         if keepalive_task is not None:
