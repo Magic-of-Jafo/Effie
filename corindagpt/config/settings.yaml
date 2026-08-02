@@ -1,4 +1,4 @@
-# Effie show settings
+﻿# Effie show settings
 #
 # Performer-tunable values. Edited by the localhost dashboard while
 # the show runs; also safe to edit by hand. Technical configuration
@@ -14,7 +14,7 @@ config:
     brief_max_ms: 250
     compound_double_press_window_ms: 350
     hotkey: '`'
-    play_hotkey: space
+    play_hotkey: numpad_minus
     sustained_min_ms: 600
   memory:
     max_turns: 10

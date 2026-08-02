@@ -139,8 +139,8 @@ SETTINGS_SCHEMA: List[Dict[str, Any]] = [
     {
         "key": "input_patterns.play_hotkey", "top": False, "tab": "Controls",
         "label": "Play trigger key",
-        "help": "Tap = play queue front (the pull string). Empty folds playback onto the record key's tap.",
-        "kind": "str", "default": "space", "live": False,
+        "help": "Tap = play queue front (the pull string). Aliases numpad_minus/plus/star/slash/dot match the numpad key only. Empty folds playback onto the record key's tap.",
+        "kind": "str", "default": "numpad_minus", "live": False,
         "display": "input_patterns.play_hotkey",
     },
     {

@@ -30,6 +30,18 @@ class InputEvent:
 
 EventHandler = Callable[[InputEvent], Awaitable[None]]
 
+# Named aliases for keys that must match by virtual-key code: the numpad
+# minus types the same '-' character as the top-row key, so character
+# matching would fire on every hyphen typed anywhere on the machine.
+# Windows VK codes: 106-111 = numpad * + sep - . /
+_VK_ALIASES: Dict[str, int] = {
+    "numpad_minus": 109,
+    "numpad_plus": 107,
+    "numpad_star": 106,
+    "numpad_slash": 111,
+    "numpad_dot": 110,
+}
+
 
 class AbstractInputHandler:
     """Abstract input handler interface. Concrete sources must implement start/stop."""
@@ -72,6 +84,7 @@ class KeyboardInputHandler(AbstractInputHandler):
         self.on_press_raw = on_press_raw
         self.on_release_raw = on_release_raw
         self.hotkey_name = (hotkey_name or "f12").lower()
+        self.hotkey_vk = _VK_ALIASES.get(self.hotkey_name)
         self.brief_max_ms = int(max(0, brief_max_ms))
         self.sustained_min_ms = int(max(0, sustained_min_ms))
         self.compound_window_ms = int(max(0, compound_double_press_window_ms))
@@ -87,6 +100,8 @@ class KeyboardInputHandler(AbstractInputHandler):
         self._pending_brief_timer: Optional[asyncio.TimerHandle] = None
 
     def _is_hotkey(self, key: object) -> bool:
+        if self.hotkey_vk is not None:
+            return getattr(key, "vk", None) == self.hotkey_vk
         return self.hotkey_name in str(key).lower()
 
     async def start(self) -> None:
