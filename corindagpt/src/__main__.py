@@ -561,6 +561,9 @@ async def main() -> None:
             "mode": live["listening_mode"],
             "status": streaming_svc.status,
             "last_error": streaming_svc.last_error,
+            "device": streaming_svc.device_name,
+            "level": round(streaming_svc.level, 4),
+            "frames": streaming_svc.frames,
             "entries": streaming_svc.recent(45.0),
         }
 

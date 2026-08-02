@@ -37,6 +37,11 @@ try:
 except Exception:  # pragma: no cover
     sd = None  # type: ignore
 
+try:
+    import numpy as np  # type: ignore
+except Exception:  # pragma: no cover
+    np = None  # type: ignore
+
 logger = logging.getLogger(__name__)
 
 WS_URL = "wss://api.openai.com/v1/realtime?intent=transcription"
@@ -65,6 +70,10 @@ class StreamingTranscriptionService:
         self._entries: Deque[Tuple[float, str]] = deque(maxlen=4000)
         self._last_delta_at: float = 0.0
         self._last_completed_at: float = 0.0
+        # Mic diagnostics for the dashboard Live view
+        self.level: float = 0.0  # decaying RMS, 0..1
+        self.frames: int = 0
+        self.device_name: str = ""
 
     # ------------------------------------------------------------ control
 
@@ -114,11 +123,33 @@ class StreamingTranscriptionService:
             self._task = None
         logger.info("Streaming transcription: stopped")
 
+    def _resolve_device(self):
+        """Optional transcription.streaming.input_device: index or name substring."""
+        want = ((self._config.get("transcription") or {}).get("streaming") or {}).get("input_device")
+        if want in (None, "", "default"):
+            return None
+        try:
+            return int(want)
+        except (TypeError, ValueError):
+            pass
+        want_l = str(want).lower()
+        for i, dev in enumerate(sd.query_devices()):
+            if dev["max_input_channels"] > 0 and want_l in dev["name"].lower():
+                return i
+        logger.warning("Streaming transcription: input_device %r not found; using default", want)
+        return None
+
     def _open_input_stream(self):
         def callback(indata, frames, time_info, status) -> None:
             if status:
                 logger.debug("Streaming mic status: %s", status)
             data = bytes(indata)
+            self.frames += 1
+            if np is not None and data:
+                pcm = np.frombuffer(data, dtype=np.int16)
+                rms = float(np.sqrt(np.mean((pcm / 32768.0) ** 2)))
+                # Peak-hold with decay so brief words stay visible on the meter
+                self.level = max(self.level * 0.7, rms)
             if self._loop is not None and self._audio_q is not None:
                 def _put() -> None:
                     try:
@@ -128,13 +159,22 @@ class StreamingTranscriptionService:
 
                 self._loop.call_soon_threadsafe(_put)
 
-        return sd.RawInputStream(
+        device = self._resolve_device()
+        stream = sd.RawInputStream(
             samplerate=SAMPLE_RATE,
             channels=1,
             dtype="int16",
             blocksize=CHUNK_FRAMES,
+            device=device,
             callback=callback,
         )
+        stream.start()
+        try:
+            self.device_name = str(sd.query_devices(stream.device)["name"])
+        except Exception:
+            self.device_name = str(device if device is not None else "default")
+        logger.info("Streaming transcription: capturing from '%s'", self.device_name)
+        return stream
 
     # ------------------------------------------------------------- engine
 

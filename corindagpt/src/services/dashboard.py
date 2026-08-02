@@ -436,6 +436,7 @@ def _render_page(settings_path: Path, saved: bool, restart: bool) -> str:
         '<p class="help">Rolling transcript from the streaming ears. '
         'Switch Listening mode to <b>streaming</b> (Listening tab), save, then speak.</p>'
         '<p id="live-status" class="help">status: -</p>'
+        '<p id="live-mic" class="help">mic: -</p>'
         '<div id="live-text" class="livebox"></div>'
         "</section>"
     )
@@ -494,6 +495,9 @@ async function pollLive() {{
     const s = await r.json();
     document.getElementById('live-status').textContent =
       'mode: ' + s.mode + '   status: ' + s.status + (s.last_error ? '   last error: ' + s.last_error : '');
+    const bar = '█'.repeat(Math.min(30, Math.round((s.level || 0) * 300)));
+    document.getElementById('live-mic').textContent =
+      'mic: ' + (s.device || '-') + '   frames: ' + (s.frames || 0) + '   level: ' + bar;
     document.getElementById('live-text').textContent = s.entries.map(e => e.text).join('');
   }} catch (e) {{
     document.getElementById('live-status').textContent = 'dashboard unreachable';
