@@ -96,8 +96,15 @@ async def main() -> None:
 
     audio_queue = build_default_queue(cfg)
     memory = build_memory(cfg)
-    response_mode = response_playback_mode(cfg)
-    logger.info("LLM response playback mode: %s", response_mode)
+    logger.info("LLM response playback mode: %s", response_playback_mode(cfg))
+
+    # Live show settings - the dashboard mutates these while running; the
+    # handler reads them per question so changes apply without a restart
+    live = {
+        "performance_plan": list(cfg.get("performance_plan") or [1]),
+        "response_mode": response_playback_mode(cfg),
+        "keepalive_interval_s": float((cfg.get("network") or {}).get("keepalive_interval_s", 60)),
+    }
 
     # Interaction mode for the press in progress, set by pattern events:
     # None (brief/dead-zone), "decode" (sustained), or "bypass" (compound)
@@ -194,7 +201,7 @@ async def main() -> None:
                     # Single-phase shows (settings.yaml phases: 1) run on the
                     # persona alone - no per-phase flavor.
                     phase = phase_manager.current_phase
-                    multi_phase = len(cfg.get("performance_plan") or []) > 1
+                    multi_phase = len(live["performance_plan"]) > 1
                     template = load_prompt_for_phase(phase, use_phase_files=multi_phase)
                     rendered = render_prompt(template, {"transcript": transcript})
 
@@ -248,7 +255,7 @@ async def main() -> None:
                         except Exception as tool_exc:
                             logger.warning("Tool-call handling error: %s", tool_exc)
 
-                    if response_mode == "queued":
+                    if live["response_mode"] == "queued":
                         # Pull-string mode (FR8): the response is synthesized
                         # and parked at the queue front; the next BRIEF input
                         # (string pull) speaks it. Nothing plays now.
@@ -469,35 +476,62 @@ async def main() -> None:
     # Keep API TLS connections open between interactions: questions are minutes
     # apart on stage, far past any keepalive expiry, so without a heartbeat
     # every leg of every question pays a fresh handshake.
-    keepalive_task = None
-    ka_interval = float((cfg.get("network") or {}).get("keepalive_interval_s", 60))
-    if ka_interval > 0:
-        from .services import gpt as _gpt_ka, tts as _tts_ka
+    from .services import gpt as _gpt_ka, tts as _tts_ka
 
-        async def _keepalive_loop() -> None:
-            oa_key = cfg.get("openai_api_key")
-            ev_key = cfg.get("elevenlabs_api_key")
-            while True:
-                await asyncio.sleep(ka_interval)
-                try:
-                    if oa_key:
-                        await _gpt_ka.get_shared_client().get(
-                            "/models/gpt-4o-mini", headers={"Authorization": f"Bearer {oa_key}"}
-                        )
-                    if ev_key:
-                        await _tts_ka.get_shared_async_client().get(
-                            "/models", headers={"xi-api-key": ev_key}
-                        )
-                        await asyncio.to_thread(_tts_ka.get_elevenlabs_client(ev_key).models.list)
-                except Exception as exc:
-                    logger.debug("Keepalive ping failed (continuing): %s", exc)
+    async def _keepalive_loop() -> None:
+        oa_key = cfg.get("openai_api_key")
+        ev_key = cfg.get("elevenlabs_api_key")
+        while True:
+            # Interval is live-tunable from the dashboard; 0 pauses pinging
+            interval = float(live["keepalive_interval_s"])
+            if interval <= 0:
+                await asyncio.sleep(30)
+                continue
+            await asyncio.sleep(interval)
+            try:
+                if oa_key:
+                    await _gpt_ka.get_shared_client().get(
+                        "/models/gpt-4o-mini", headers={"Authorization": f"Bearer {oa_key}"}
+                    )
+                if ev_key:
+                    await _tts_ka.get_shared_async_client().get(
+                        "/models", headers={"xi-api-key": ev_key}
+                    )
+                    await asyncio.to_thread(_tts_ka.get_elevenlabs_client(ev_key).models.list)
+            except Exception as exc:
+                logger.debug("Keepalive ping failed (continuing): %s", exc)
 
-        keepalive_task = asyncio.create_task(_keepalive_loop())
+    keepalive_task = asyncio.create_task(_keepalive_loop())
+
+    # Localhost settings dashboard: edits config/settings.yaml and applies
+    # supported values to the running show through `live`
+    from .services.dashboard import start_dashboard
+    from .utils.initialization import PROJECT_ROOT
+
+    def _apply_dashboard_settings(vals: dict) -> None:
+        # Called from the dashboard's server thread; mutate app state on the loop
+        def _apply() -> None:
+            if "phases" in vals:
+                new_plan = list(range(1, int(vals["phases"]) + 1))
+                live["performance_plan"] = new_plan
+                phase_manager.set_plan(new_plan)
+            if "response_playback" in vals:
+                live["response_mode"] = str(vals["response_playback"])
+            if "keepalive_interval_s" in vals:
+                live["keepalive_interval_s"] = float(vals["keepalive_interval_s"])
+
+        loop.call_soon_threadsafe(_apply)
+
+    dashboard_server = start_dashboard(
+        cfg, PROJECT_ROOT / "config" / "settings.yaml", _apply_dashboard_settings
+    )
 
     try:
         # Keep the event loop alive indefinitely
         await asyncio.Event().wait()
     finally:
+        if dashboard_server is not None:
+            dashboard_server.shutdown()
         if keepalive_task is not None:
             keepalive_task.cancel()
         input_handler.stop_keyboard_listener()

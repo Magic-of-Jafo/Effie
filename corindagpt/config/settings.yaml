@@ -1,12 +1,8 @@
 # Effie show settings
 #
-# Performer-tunable values, safe to edit between shows. The future dashboard
-# reads and writes THIS file only. Technical configuration (endpoints, models,
-# audio plumbing) lives in config.yaml - settings here override it at startup.
-
-# Number of performance phases (1-5).
-#   1 = simple mode: persona only, no per-phase prompt flavor; spacebar plays
-#       prerecorded audio, hold records (decoded), tap+hold records (bypass).
-#   2+ = phase_N_prompt.txt files shape each phase; advance via F11 long-press
-#       or the spoken phase keyphrases.
+# Performer-tunable values. Edited by the localhost dashboard while
+# the show runs; also safe to edit by hand. Technical configuration
+# lives in config.yaml - settings here override it at startup.
+keepalive_interval_s: 60
 phases: 1
+response_playback: queued

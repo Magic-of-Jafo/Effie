@@ -28,6 +28,12 @@ transitions:
     enabled: true
     keyphrases: ["next phase", "advance phase", "switch to phase {n}"]
 
+dashboard:
+  # Localhost-only settings page (http://127.0.0.1:<port>) for editing
+  # config/settings.yaml while the show runs. Never exposed to the network.
+  enabled: true
+  port: 7360
+
 network:
   # Ping OpenAI/ElevenLabs this often (seconds) to keep TLS connections hot
   # between stage interactions; 0 disables the heartbeat

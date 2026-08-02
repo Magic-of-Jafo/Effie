@@ -51,6 +51,23 @@ def _apply_show_settings(data: Dict[str, Any], settings_path: Path) -> None:
             phases = min(5, max(1, phases))
         data["performance_plan"] = list(range(1, phases + 1))
 
+    if "response_playback" in settings:
+        mode = str(settings.get("response_playback")).strip().lower()
+        if mode not in ("queued", "immediate"):
+            logger.warning("settings.yaml: response_playback=%r invalid; using 'queued'.", settings.get("response_playback"))
+            mode = "queued"
+        data.setdefault("audio_queue", {})["response_playback"] = mode
+
+    if "keepalive_interval_s" in settings:
+        try:
+            interval = float(settings.get("keepalive_interval_s"))
+        except Exception:
+            interval = 60.0
+        if not 0 <= interval <= 3600:
+            logger.warning("settings.yaml: keepalive_interval_s=%r out of range; clamping to 0-3600.", settings.get("keepalive_interval_s"))
+            interval = min(3600.0, max(0.0, interval))
+        data.setdefault("network", {})["keepalive_interval_s"] = interval
+
 
 # Load environment variables from a local .env if present (no override of existing env)
 load_dotenv(dotenv_path=PROJECT_ROOT / ".env", override=False)

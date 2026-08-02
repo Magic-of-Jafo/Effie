@@ -71,5 +71,24 @@ class PhaseManager:
             logger.warning("PhaseManager.set: phase %s not in plan %s", desired, self._plan)
         return self._current
 
+    def set_plan(self, performance_plan: List[int]) -> None:
+        """Swap the plan live (dashboard). Keeps the current phase if the new
+        plan contains it; otherwise restarts at the new plan's first phase."""
+        normalized: List[int] = []
+        for item in performance_plan or []:
+            try:
+                normalized.append(int(item))
+            except Exception:
+                continue
+        if not normalized:
+            normalized = [1]
+        self._plan = normalized
+        if self._current in normalized:
+            self._index = normalized.index(self._current)
+        else:
+            self._index = 0
+            self._current = normalized[0]
+        logger.info("PhaseManager: plan set to %s (current_phase=%s)", self._plan, self._current)
+
     def load_prompt_for_current_phase(self):
         return load_prompt_for_phase(self._current)
