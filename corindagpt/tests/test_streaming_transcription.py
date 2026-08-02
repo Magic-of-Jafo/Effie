@@ -91,3 +91,21 @@ def test_model_punctuation_not_doubled():
 def test_trailing_period_added_at_window_end():
     svc = _svc()
     assert svc._assemble([(1.0, "Guess"), (1.3, " the card")]) == "Guess the card."
+
+
+def test_live_model_gets_no_turn_detection():
+    svc = StreamingTranscriptionService(
+        {"openai_api_key": "k", "transcription": {"streaming": {"model": "gpt-live-transcribe"}}}
+    )
+    inp = svc._session_input_config()
+    assert inp["transcription"]["model"] == "gpt-live-transcribe"
+    assert "turn_detection" not in inp
+
+
+def test_4o_model_gets_server_vad():
+    svc = StreamingTranscriptionService(
+        {"openai_api_key": "k",
+         "transcription": {"streaming": {"model": "gpt-4o-mini-transcribe", "vad_silence_ms": 650}}}
+    )
+    inp = svc._session_input_config()
+    assert inp["turn_detection"] == {"type": "server_vad", "silence_duration_ms": 650}

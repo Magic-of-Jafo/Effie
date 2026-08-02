@@ -12,6 +12,15 @@ transcription:
   language: "en"
   prompt: "Common phrases: Hello testing, testing one two"
   streaming_enabled: false
+  streaming:
+    # Engine for listening_mode: streaming.
+    # gpt-live-transcribe: word-by-word deltas; punctuation synthesized from
+    #   speech pauses (pause_split_ms) because the model defers it.
+    # gpt-4o(-mini)-transcribe: server VAD closes each utterance at a
+    #   silence (vad_silence_ms) and returns it finalized and punctuated.
+    model: "gpt-live-transcribe"
+    pause_split_ms: 700
+    vad_silence_ms: 500
   elevenlabs:
     endpoint: "https://api.elevenlabs.io/v1/speech-to-text"
     model: "scribe_v1"

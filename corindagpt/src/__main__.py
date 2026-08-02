@@ -543,15 +543,31 @@ async def main() -> None:
                 live["response_mode"] = str(vals["response_playback"])
             if "keepalive_interval_s" in vals:
                 live["keepalive_interval_s"] = float(vals["keepalive_interval_s"])
+            mode_changed = False
             if "listening_mode" in vals:
                 mode = str(vals["listening_mode"])
                 if mode != live["listening_mode"]:
+                    mode_changed = True
                     live["listening_mode"] = mode
                     logger.info("Listening mode switched to %s", mode)
                     if mode == "streaming":
                         asyncio.create_task(streaming_svc.start())
                     else:
                         asyncio.create_task(streaming_svc.stop())
+            # Streaming engine settings (model, pause split, VAD silence)
+            # apply by bouncing the engine - but not if the mode toggle above
+            # already started/stopped it in this same save
+            if (
+                not mode_changed
+                and live["listening_mode"] == "streaming"
+                and any(k.startswith("transcription.streaming.") for k in vals)
+            ):
+                async def _bounce() -> None:
+                    await streaming_svc.stop()
+                    await streaming_svc.start()
+
+                logger.info("Streaming settings changed; restarting streaming engine")
+                asyncio.create_task(_bounce())
 
         loop.call_soon_threadsafe(_apply)
 

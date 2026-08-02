@@ -54,13 +54,7 @@ class StreamingTranscriptionService:
 
     def __init__(self, config: Dict[str, Any]) -> None:
         self._config = config
-        streaming_cfg = (config.get("transcription") or {}).get("streaming") or {}
-        self._model = str(streaming_cfg.get("model") or "gpt-live-transcribe")
-        # The model defers sentence-final punctuation until later context
-        # (often the next utterance) and sometimes omits it entirely. A gap
-        # in delta arrivals is a speech pause; treat it as a sentence
-        # boundary so decoding never depends on the model's punctuation.
-        self._pause_split_s = float(streaming_cfg.get("pause_split_ms", 700)) / 1000.0
+        self._apply_cfg()
         self._api_key: Optional[str] = config.get("openai_api_key")
         self.status: str = "off"  # off | connecting | live | reconnecting
         self.last_error: str = ""
@@ -78,6 +72,40 @@ class StreamingTranscriptionService:
         self.frames: int = 0
         self.device_name: str = ""
 
+    def _apply_cfg(self) -> None:
+        streaming_cfg = (self._config.get("transcription") or {}).get("streaming") or {}
+        self._model = str(streaming_cfg.get("model") or "gpt-live-transcribe")
+        # gpt-live-transcribe defers sentence-final punctuation until later
+        # context (often the next utterance) and sometimes omits it. A gap in
+        # delta arrivals is a speech pause; treat it as a sentence boundary
+        # so decoding never depends on the model's punctuation.
+        self._pause_split_s = float(streaming_cfg.get("pause_split_ms", 700)) / 1000.0
+        # The 4o-transcribe family supports server VAD instead: the API closes
+        # each utterance at a silence and returns it finalized AND punctuated.
+        self._vad_silence_ms = int(streaming_cfg.get("vad_silence_ms", 500))
+
+    def _refresh_config(self) -> None:
+        """Re-read config so dashboard edits apply on the next start()."""
+        try:
+            from ..utils.initialization import load_config
+
+            self._config = load_config()
+        except Exception as exc:
+            logger.debug("Streaming transcription: config refresh failed (%s)", exc)
+        self._apply_cfg()
+
+    def _session_input_config(self) -> Dict[str, Any]:
+        inp: Dict[str, Any] = {
+            "format": {"type": "audio/pcm", "rate": SAMPLE_RATE},
+            "transcription": {"model": self._model},
+        }
+        if self._model != "gpt-live-transcribe":
+            inp["turn_detection"] = {
+                "type": "server_vad",
+                "silence_duration_ms": self._vad_silence_ms,
+            }
+        return inp
+
     # ------------------------------------------------------------ control
 
     def is_active(self) -> bool:
@@ -86,6 +114,7 @@ class StreamingTranscriptionService:
     async def start(self) -> None:
         if self._running:
             return
+        self._refresh_config()
         if websockets is None or sd is None:
             logger.warning("Streaming transcription unavailable (missing websockets/sounddevice)")
             return
@@ -207,12 +236,7 @@ class StreamingTranscriptionService:
                 "type": "session.update",
                 "session": {
                     "type": "transcription",
-                    "audio": {
-                        "input": {
-                            "format": {"type": "audio/pcm", "rate": SAMPLE_RATE},
-                            "transcription": {"model": self._model},
-                        },
-                    },
+                    "audio": {"input": self._session_input_config()},
                 },
             }))
             self.status = "live"

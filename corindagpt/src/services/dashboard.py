@@ -189,9 +189,32 @@ SETTINGS_SCHEMA: List[Dict[str, Any]] = [
         "display": "listening_mode",
     },
     {
+        "key": "transcription.streaming.model", "top": False, "tab": "Listening",
+        "label": "Streaming model",
+        "help": "gpt-live-transcribe = word-by-word crawl, punctuation synthesized from pauses. The 4o models = utterance bursts ~0.5s after each pause, native punctuation, better name recognition. Saving restarts the streaming engine automatically.",
+        "kind": "choice",
+        "choices": ["gpt-live-transcribe", "gpt-4o-mini-transcribe", "gpt-4o-transcribe"],
+        "default": "gpt-live-transcribe", "live": True,
+        "display": "transcription.streaming.model",
+    },
+    {
+        "key": "transcription.streaming.pause_split_ms", "top": False, "tab": "Listening",
+        "label": "Pause split (ms)",
+        "help": "gpt-live-transcribe only: a delta gap this long ends the sentence.",
+        "kind": "int", "lo": 200, "hi": 3000, "default": 700, "live": True,
+        "display": "transcription.streaming.pause_split_ms",
+    },
+    {
+        "key": "transcription.streaming.vad_silence_ms", "top": False, "tab": "Listening",
+        "label": "VAD silence (ms)",
+        "help": "4o models only: silence that closes an utterance server-side.",
+        "kind": "int", "lo": 200, "hi": 2000, "default": 500, "live": True,
+        "display": "transcription.streaming.vad_silence_ms",
+    },
+    {
         "key": "transcription.elevenlabs.model", "top": False, "tab": "Listening",
-        "label": "Transcription model",
-        "help": "ElevenLabs speech-to-text model.",
+        "label": "Push-hold transcription model",
+        "help": "ElevenLabs speech-to-text model (push_hold mode).",
         "kind": "str", "default": "scribe_v1", "live": False,
         "display": "transcription.elevenlabs.model",
     },
@@ -578,7 +601,11 @@ def _make_handler(
                 return
             if apply_cb is not None:
                 try:
-                    apply_cb({k: v for k, v in updates.items() if k in ("phases", "response_playback", "keepalive_interval_s", "listening_mode")})
+                    apply_cb({
+                        k: v for k, v in updates.items()
+                        if k in ("phases", "response_playback", "keepalive_interval_s", "listening_mode")
+                        or k.startswith("transcription.streaming.")
+                    })
                 except Exception as exc:
                     logger.error("Dashboard: live-apply failed (file saved): %s", exc)
             logger.info("Dashboard: settings saved (%d values, restart_needed=%s)", len(updates), restart_needed)
