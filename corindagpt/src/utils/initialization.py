@@ -24,6 +24,14 @@ def _default_settings_path() -> Path:
     return PROJECT_ROOT / "config" / "settings.yaml"
 
 
+def _deep_merge(dst: Dict[str, Any], src: Dict[str, Any]) -> None:
+    for key, value in src.items():
+        if isinstance(value, dict) and isinstance(dst.get(key), dict):
+            _deep_merge(dst[key], value)
+        else:
+            dst[key] = value
+
+
 def _apply_show_settings(data: Dict[str, Any], settings_path: Path) -> None:
     """Overlay show settings (settings.yaml) onto the loaded config, in place.
 
@@ -40,6 +48,12 @@ def _apply_show_settings(data: Dict[str, Any], settings_path: Path) -> None:
         logger.warning("Show settings unreadable (%s); using config.yaml as-is.", exc)
         return
     data["settings"] = settings
+
+    # Dashboard-written overrides of arbitrary config.yaml values live under
+    # a nested `config:` subtree; merge them over the loaded defaults first
+    overrides = settings.get("config")
+    if isinstance(overrides, dict):
+        _deep_merge(data, overrides)
 
     if "phases" in settings:
         try:

@@ -2,7 +2,46 @@
 #
 # Performer-tunable values. Edited by the localhost dashboard while
 # the show runs; also safe to edit by hand. Technical configuration
-# lives in config.yaml - settings here override it at startup.
+# lives in config.yaml; the `config:` block here overrides it.
+config:
+  audio_queue:
+    preload:
+      loop: false
+      order: sequential
+  dashboard:
+    port: 7360
+  input_patterns:
+    brief_max_ms: 250
+    compound_double_press_window_ms: 350
+    hotkey: '`'
+    play_hotkey: space
+    sustained_min_ms: 600
+  memory:
+    max_turns: 10
+  model_names:
+    text: gpt-5.4-nano
+  transcription:
+    elevenlabs:
+      diarize: false
+      model: scribe_v1
+      tag_audio_events: false
+    language: en
+  transitions:
+    llm_phase_control:
+      enabled: false
+    phase_transition:
+      hotkey: f11
+      long_press_ms: 3000
+  tts:
+    elevenlabs:
+      model_id: eleven_flash_v2_5
+      voice_id: pPdl9cQBQq4p6mRkZy2Z
+      voice_settings:
+        similarity_boost: 0.4
+        speed: 0.9
+        stability: 0.4
+        style: 0.0
+        use_speaker_boost: false
 keepalive_interval_s: 60
 phases: 1
 response_playback: queued
