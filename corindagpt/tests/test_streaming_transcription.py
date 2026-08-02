@@ -23,10 +23,14 @@ def test_window_slices_by_arrival_time():
 
 
 def test_window_waits_for_trailing_deltas():
+    # Released while final words were still in flight: speech ran right up
+    # to release, so the window must wait for the late delta
     svc = _svc()
     t_press = time.monotonic()
 
     async def run() -> str:
+        svc._last_loud_at = time.monotonic()  # speaking until release
+
         async def late_delta() -> None:
             await asyncio.sleep(0.15)
             now = time.monotonic()
@@ -34,11 +38,37 @@ def test_window_waits_for_trailing_deltas():
             svc._last_delta_at = now
 
         task = asyncio.create_task(late_delta())
-        text = await svc.get_window(t_press, time.monotonic(), tail_s=0.8)
+        text = await svc.get_window(t_press, time.monotonic(), tail_s=1.0)
         await task
         return text
 
     assert asyncio.run(run()) == "late word."
+
+
+def test_window_hands_off_instantly_when_speech_already_transcribed():
+    # The natural stage rhythm: finish the sentence, beat, release. All
+    # deltas landed before release - no waiting allowed
+    svc = _svc()
+    now = time.monotonic()
+    svc._entries.extend([(now - 1.5, "Guess"), (now - 1.2, " the card")])
+    svc._last_loud_at = now - 1.0   # last speech a second ago
+    svc._last_delta_at = now - 0.7  # transcription caught up and went quiet
+
+    t0 = time.monotonic()
+    text = asyncio.run(svc.get_window(now - 3.0, now, tail_s=1.5))
+    elapsed = time.monotonic() - t0
+    assert text == "Guess the card."
+    assert elapsed < 0.2, f"instant handoff expected, took {elapsed:.2f}s"
+
+
+def test_window_silent_hold_returns_fast_and_empty():
+    svc = _svc()
+    now = time.monotonic()
+    svc._last_loud_at = now - 60.0  # nobody spoke during the hold
+    t0 = time.monotonic()
+    text = asyncio.run(svc.get_window(now - 2.0, now, tail_s=1.5))
+    assert text == ""
+    assert time.monotonic() - t0 < 0.2
 
 
 def test_recent_returns_only_fresh_entries():

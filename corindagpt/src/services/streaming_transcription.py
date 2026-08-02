@@ -71,6 +71,7 @@ class StreamingTranscriptionService:
         self.level: float = 0.0  # decaying RMS, 0..1
         self.frames: int = 0
         self.device_name: str = ""
+        self._last_loud_at: float = 0.0  # last moment mic RMS indicated speech
 
     def _apply_cfg(self) -> None:
         streaming_cfg = (self._config.get("transcription") or {}).get("streaming") or {}
@@ -83,6 +84,11 @@ class StreamingTranscriptionService:
         # The 4o-transcribe family supports server VAD instead: the API closes
         # each utterance at a silence and returns it finalized AND punctuated.
         self._vad_silence_ms = int(streaming_cfg.get("vad_silence_ms", 500))
+        # Window close: mic RMS above speech_rms marks "still speaking"; the
+        # window is settled once transcription has caught up to the last
+        # speech and the delta stream has been quiet for window_settle_ms.
+        self._speech_rms = float(streaming_cfg.get("speech_rms", 0.004))
+        self._settle_s = float(streaming_cfg.get("window_settle_ms", 400)) / 1000.0
 
     def _refresh_config(self) -> None:
         """Re-read config so dashboard edits apply on the next start()."""
@@ -182,6 +188,8 @@ class StreamingTranscriptionService:
                 rms = float(np.sqrt(np.mean((pcm / 32768.0) ** 2)))
                 # Peak-hold with decay so brief words stay visible on the meter
                 self.level = max(self.level * 0.7, rms)
+                if rms > self._speech_rms:
+                    self._last_loud_at = time.monotonic()
             if self._loop is not None and self._audio_q is not None:
                 def _put() -> None:
                     try:
@@ -304,18 +312,32 @@ class StreamingTranscriptionService:
             text += "."
         return text
 
-    async def get_window(self, t_start: float, t_end: float, *, tail_s: float = 1.2) -> str:
+    async def get_window(self, t_start: float, t_end: float, *, tail_s: float = 1.5) -> str:
         """Text whose deltas arrived between t_start and t_end (+ settle tail).
 
-        Deltas lag speech by ~0.4-0.8 s, so after release we wait for the
-        trailing words: up to tail_s, ending early once deltas go quiet.
+        Transcription lags speech, so the window closes on evidence, not a
+        fixed wait: once deltas have arrived covering the last moment the mic
+        heard speech AND the delta stream has been quiet for settle_s, the
+        transcript is complete. If speech ended well before release (the
+        natural finish-pause-release rhythm), that is true immediately and
+        the handoff is near-instant; releasing mid-word waits only for the
+        in-flight words. tail_s is the hard cap either way.
         """
-        deadline = t_end + tail_s
-        while time.monotonic() < deadline:
-            quiet_for = time.monotonic() - self._last_delta_at
-            if self._last_delta_at > t_end and quiet_for > 0.35:
-                break
-            await asyncio.sleep(0.05)
+        t0 = time.monotonic()
+        # Last speech the mic heard before release. >= not >: same-instant
+        # press-and-speak must count as speech (Windows clock ticks ~16 ms)
+        target = self._last_loud_at
+        if target >= t_start:
+            deadline = t_end + tail_s
+            while True:
+                now = time.monotonic()
+                if now >= deadline:
+                    logger.info("Streaming window: settle cap hit (%d ms)", int((now - t0) * 1000))
+                    break
+                if self._last_delta_at >= target and (now - self._last_delta_at) >= self._settle_s:
+                    logger.info("Streaming window: settled in %d ms", int((now - t0) * 1000))
+                    break
+                await asyncio.sleep(0.05)
         cutoff = time.monotonic()
         return self._assemble([(t, d) for t, d in list(self._entries) if t_start <= t <= cutoff])
 
