@@ -54,10 +54,13 @@ class StreamingTranscriptionService:
 
     def __init__(self, config: Dict[str, Any]) -> None:
         self._config = config
-        self._model = str(
-            ((config.get("transcription") or {}).get("streaming") or {}).get("model")
-            or "gpt-live-transcribe"
-        )
+        streaming_cfg = (config.get("transcription") or {}).get("streaming") or {}
+        self._model = str(streaming_cfg.get("model") or "gpt-live-transcribe")
+        # The model defers sentence-final punctuation until later context
+        # (often the next utterance) and sometimes omits it entirely. A gap
+        # in delta arrivals is a speech pause; treat it as a sentence
+        # boundary so decoding never depends on the model's punctuation.
+        self._pause_split_s = float(streaming_cfg.get("pause_split_ms", 700)) / 1000.0
         self._api_key: Optional[str] = config.get("openai_api_key")
         self.status: str = "off"  # off | connecting | live | reconnecting
         self.last_error: str = ""
@@ -249,6 +252,34 @@ class StreamingTranscriptionService:
 
     # -------------------------------------------------------------- reads
 
+    def _assemble(self, entries: List[Tuple[float, str]]) -> str:
+        """Join deltas, inserting sentence boundaries at speech pauses.
+
+        - A delta-arrival gap > pause_split_s ends the sentence; a period is
+          inserted if the model has not already punctuated.
+        - The model often emits the previous sentence's period as the FIRST
+          delta after the pause; that late punctuation is re-attached to the
+          sentence it belongs to instead of orphaning it after the boundary.
+        """
+        parts: List[str] = []
+        prev_t: Optional[float] = None
+        for t, d in entries:
+            if prev_t is not None and (t - prev_t) > self._pause_split_s:
+                stripped = d.lstrip()
+                while stripped and stripped[0] in ".!?,;:":
+                    parts.append(stripped[0])
+                    stripped = stripped[1:].lstrip()
+                d = (" " + stripped) if stripped else ""
+                joined_tail = "".join(parts).rstrip()
+                if joined_tail and joined_tail[-1] not in ".!?":
+                    parts.append(".")
+            parts.append(d)
+            prev_t = t
+        text = "".join(parts).strip()
+        if text and text[-1] not in ".!?":
+            text += "."
+        return text
+
     async def get_window(self, t_start: float, t_end: float, *, tail_s: float = 1.2) -> str:
         """Text whose deltas arrived between t_start and t_end (+ settle tail).
 
@@ -262,8 +293,7 @@ class StreamingTranscriptionService:
                 break
             await asyncio.sleep(0.05)
         cutoff = time.monotonic()
-        text = "".join(d for t, d in list(self._entries) if t_start <= t <= cutoff).strip()
-        return text
+        return self._assemble([(t, d) for t, d in list(self._entries) if t_start <= t <= cutoff])
 
     def recent(self, seconds: float = 45.0) -> List[Dict[str, Any]]:
         """Recent deltas for the dashboard Live view (thread-safe snapshot)."""
@@ -273,3 +303,8 @@ class StreamingTranscriptionService:
             if now - t <= seconds:
                 out.append({"ago": round(now - t, 1), "text": d})
         return out
+
+    def recent_text(self, seconds: float = 45.0) -> str:
+        """Recent speech, pause-segmented - what the decoder would see."""
+        now = time.monotonic()
+        return self._assemble([(t, d) for t, d in list(self._entries) if now - t <= seconds])

@@ -498,7 +498,8 @@ async function pollLive() {{
     const bar = '█'.repeat(Math.min(30, Math.round((s.level || 0) * 300)));
     document.getElementById('live-mic').textContent =
       'mic: ' + (s.device || '-') + '   frames: ' + (s.frames || 0) + '   level: ' + bar;
-    document.getElementById('live-text').textContent = s.entries.map(e => e.text).join('');
+    document.getElementById('live-text').textContent =
+      (s.text !== undefined) ? s.text : s.entries.map(e => e.text).join('');
   }} catch (e) {{
     document.getElementById('live-status').textContent = 'dashboard unreachable';
   }}

@@ -565,6 +565,7 @@ async def main() -> None:
             "level": round(streaming_svc.level, 4),
             "frames": streaming_svc.frames,
             "entries": streaming_svc.recent(45.0),
+            "text": streaming_svc.recent_text(45.0),
         }
 
     dashboard_server = start_dashboard(
